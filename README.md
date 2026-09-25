@@ -1,5 +1,7 @@
 # Trellis
 
+### Keep sensitive data out
+
 [![Tests](https://github.com/daffi1238/Trellis/actions/workflows/test.yml/badge.svg)](https://github.com/daffi1238/Trellis/actions/workflows/test.yml)
 
 ![Trellis demo: pasting into Claude turns personal data into placeholders, hovering a placeholder reveals the original, and copying the reply gives back the real values](docs/demo.gif)
