@@ -1,0 +1,11 @@
+header .actions label { font-size: 13px; color: var(--muted); }
+.intro { max-width: 900px; }
+.panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.panels section { margin-top: 0; }
+@media (max-width: 900px) { .panels { grid-template-columns: 1fr; } }
+.panels textarea { font-family: inherit; font-size: 13.5px; }
+textarea[readonly] { background: var(--card); }
+h2.inline { display: inline; }
+summary { list-style-position: outside; }
+.mappings-wrap { max-height: 320px; overflow-y: auto; margin-top: 8px; }
+.mappings-wrap td:first-child { font-family: ui-monospace, monospace; white-space: nowrap; }

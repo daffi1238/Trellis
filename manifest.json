@@ -1,0 +1,55 @@
+{
+  "manifest_version": 3,
+  "name": "Trellis",
+  "version": "2.4.1",
+  "description": "Keeps sensitive data out of AI chatbots: obfuscates on paste and send, and shows the originals only to you.",
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab",
+    "clipboardWrite",
+    "unlimitedStorage",
+    "contextMenus"
+  ],
+  "host_permissions": [
+    "https://*.chatgpt.com/*",
+    "https://*.openai.com/*",
+    "https://*.claude.ai/*",
+    "https://*.gemini.google.com/*",
+    "https://*.aistudio.google.com/*",
+    "https://*.deepseek.com/*",
+    "https://*.z.ai/*",
+    "https://*.mistral.ai/*",
+    "https://*.perplexity.ai/*",
+    "https://*.copilot.microsoft.com/*",
+    "https://*.grok.com/*",
+    "https://*.poe.com/*",
+    "https://*.qwen.ai/*",
+    "https://*.kimi.com/*",
+    "https://*.meta.ai/*",
+    "https://*.huggingface.co/*"
+  ],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Trellis",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "panel.html"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
+      "use_dynamic_url": true
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "trellis",
+  "version": "2.4.1",
+  "private": true,
+  "description": "Chrome extension that keeps sensitive data out of AI chatbots",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "node -e \"JSON.parse(require('fs').readFileSync('manifest.json','utf8'))\" && for f in *.js test/*.js test/e2e/*.js; do node --check \"$f\" || exit 1; done",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}

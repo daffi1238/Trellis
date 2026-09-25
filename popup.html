@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <style>
+    :root { color-scheme: light dark; }
+    body { font: 13px/1.4 system-ui, sans-serif; width: 280px; margin: 0; padding: 14px; }
+    h1 { font-size: 14px; margin: 0 0 10px; }
+    h2 { font-size: 12px; margin: 14px 0 6px; opacity: .8; text-transform: uppercase; letter-spacing: .04em; }
+    .muted { opacity: .7; font-size: 12px; margin-top: 8px; }
+    label { margin-bottom: 6px; display: flex; gap: 8px; align-items: center; font-weight: 600; }
+    #site { margin: 10px 0; padding: 8px; border-radius: 6px; background: rgba(127,127,127,.12); }
+    #site.on { color: #059669; }
+    .mem { display: flex; gap: 6px; }
+    .mem input { flex: 1; min-width: 0; }
+    input, select { font: inherit; padding: 5px 6px; border-radius: 6px; border: 1px solid rgba(127,127,127,.35);
+                    background: transparent; color: inherit; }
+    button { font: inherit; width: 100%; margin-top: 6px; padding: 6px; cursor: pointer; border-radius: 6px;
+             border: 1px solid rgba(127,127,127,.35); background: transparent; color: inherit; }
+    #memAdd { width: auto; margin-top: 0; }
+    label.small { font-weight: 400; font-size: 12px; margin: 6px 0 0; }
+    label.select { justify-content: space-between; font-weight: 600; }
+    label.select select { font-weight: 400; }
+  </style>
+</head>
+<body>
+  <h1>🔒 Trellis</h1>
+  <label><input type="checkbox" id="enabled" /> Obfuscate on paste and send</label>
+  <label for="restoreMode" class="select">Show originals
+    <select id="restoreMode">
+      <option value="hover">On hover</option>
+      <option value="inline">Inline (site can read)</option>
+      <option value="off">Never (placeholders)</option>
+    </select>
+  </label>
+  <div id="site">…</div>
+  <button id="addSite" hidden>Protect this site</button>
+
+  <h2>Memory</h2>
+  <div class="mem">
+    <input type="text" id="memTerm" placeholder="Name, company, project…" />
+    <select id="memCategory"></select>
+    <button id="memAdd">Add</button>
+  </div>
+  <label class="small"><input type="checkbox" id="memPartial" /> Partial match (also inside other words)</label>
+  <div id="memStatus" class="muted"></div>
+
+  <div id="vault" class="muted"></div>
+  <button id="forget">Forget placeholder mappings</button>
+  <button id="workbench">Open workbench…</button>
+  <button id="options">Settings…</button>
+  <script src="obfuscator.js"></script>
+  <script src="defaults.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

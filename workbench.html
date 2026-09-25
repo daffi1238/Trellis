@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Trellis · Workbench</title>
+  <link rel="stylesheet" href="options.css" />
+  <link rel="stylesheet" href="workbench.css" />
+</head>
+<body>
+  <header>
+    <h1>🔒 Trellis workbench</h1>
+    <div class="actions">
+      <label for="site">Placeholders for</label>
+      <select id="site"></select>
+    </div>
+  </header>
+
+  <main>
+    <p class="hint intro">
+      Prepare messages here instead of in the chat. Original values stay inside the extension: only the
+      obfuscated text goes to the chat, and replies are revealed here. Placeholders are shared with the chosen
+      site, so they match the ones Trellis uses on that site's pages.
+    </p>
+
+    <div class="panels">
+      <section>
+        <h2>1 · Your text</h2>
+        <textarea id="source" rows="10" placeholder="Write or paste the text you want to send…"></textarea>
+        <div class="row">
+          <button id="obfuscate" class="primary">Obfuscate</button>
+          <span id="obfuscateInfo" class="hint"></span>
+        </div>
+        <textarea id="obfuscated" rows="10" readonly placeholder="The obfuscated text will appear here"></textarea>
+        <div class="row">
+          <button id="copyObfuscated">Copy obfuscated text</button>
+          <span id="copyObfuscatedInfo" class="hint"></span>
+        </div>
+      </section>
+
+      <section>
+        <h2>2 · The reply</h2>
+        <textarea id="reply" rows="10" placeholder="Paste the LLM's reply (with placeholders) here…"></textarea>
+        <div class="row">
+          <span id="revealInfo" class="hint">Revealed automatically as you paste.</span>
+        </div>
+        <textarea id="revealed" rows="10" readonly placeholder="The reply with the original values will appear here"></textarea>
+        <div class="row">
+          <button id="copyRevealed">Copy with original values</button>
+          <button id="clearClipboard" class="ghost">Clear clipboard</button>
+        </div>
+        <p class="hint">Copying the revealed reply puts original values on your system clipboard. Clear it before
+          switching back to a chat tab whose site may read the clipboard.</p>
+      </section>
+    </div>
+
+    <section>
+      <details id="mappingsBox">
+        <summary><h2 class="inline">Placeholders for this site</h2> <span id="mappingCount" class="hint"></span></summary>
+        <div class="table-wrap mappings-wrap">
+          <table id="mappings"><thead><tr><th>Placeholder</th><th>Original value</th></tr></thead><tbody></tbody></table>
+        </div>
+        <div class="row">
+          <button id="forgetSite" class="ghost">Forget this site's placeholders</button>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <script src="obfuscator.js"></script>
+  <script src="defaults.js"></script>
+  <script src="workbench.js"></script>
+</body>
+</html>

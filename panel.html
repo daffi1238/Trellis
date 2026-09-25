@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Trellis</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <header>
+    <strong>🔒 Trellis</strong>
+    <span id="site" class="muted"></span>
+    <button id="close" class="icon" title="Close">✕</button>
+  </header>
+
+  <main>
+    <section>
+      <h2>Suggestions <span id="suggestionCount" class="count"></span></h2>
+      <p class="muted small">Looks sensitive but matched nothing. Hide it to add it to your memory and obfuscate it in the message box.</p>
+      <ul id="suggestions" class="list"></ul>
+      <p id="noSuggestions" class="muted small" hidden>Nothing to suggest right now.</p>
+    </section>
+
+    <section>
+      <h2>Add a term</h2>
+      <div class="row">
+        <input type="text" id="term" placeholder="Name, company, code…" />
+      </div>
+      <div class="row">
+        <input type="text" id="category" list="categories" class="category" title="Category (placeholder label)" />
+        <label class="small"><input type="checkbox" id="partial" /> Partial match</label>
+        <button id="add" class="primary">Hide</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Placeholders on this site <span id="placeholderCount" class="count"></span></h2>
+      <ul id="placeholders" class="list"></ul>
+      <p id="noPlaceholders" class="muted small" hidden>None yet.</p>
+    </section>
+  </main>
+
+  <datalist id="categories"></datalist>
+  <p id="status" class="status small" role="status"></p>
+
+  <script src="obfuscator.js"></script>
+  <script src="defaults.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>

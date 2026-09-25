@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Trellis · Settings</title>
+  <link rel="stylesheet" href="options.css" />
+</head>
+<body>
+  <header>
+    <h1>🔒 Trellis</h1>
+    <div class="actions">
+      <a href="workbench.html" target="_blank">Open workbench</a>
+      <span id="status" class="status"></span>
+      <button id="save" class="primary">Save</button>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <h2>General</h2>
+      <label class="row"><input type="checkbox" id="enabled" /> Enabled</label>
+      <label class="row"><input type="checkbox" id="showToast" /> Show a notice when something is obfuscated</label>
+      <div class="row">
+        <label for="presend">Check before sending (Enter or Send button):</label>
+        <select id="presend">
+          <option value="obfuscate">Obfuscate what I typed and ask me to send again</option>
+          <option value="block">Only block sending and warn me</option>
+          <option value="off">Off</option>
+        </select>
+      </div>
+      <label class="row"><input type="checkbox" id="typingWarning" /> Warn me as soon as I type something sensitive</label>
+      <label class="row"><input type="checkbox" id="showPanel" /> Show the floating 🔒 button on chat pages (placeholders, suggestions, quick add)</label>
+      <div class="row">
+        <label for="restoreMode">Show original values of placeholders:</label>
+        <select id="restoreMode">
+          <option value="hover">On hover — the site cannot read them (recommended)</option>
+          <option value="inline">Inline in the page — the site's scripts CAN read them</option>
+          <option value="off">Never — show the placeholders, exactly as the LLM received them</option>
+        </select>
+      </div>
+      <p class="hint" id="inlineWarning">⚠ Inline mode writes the original values into the page, where the chat site's own scripts
+        (analytics, session replay, "share" features…) can read them. Use hover mode unless you trust the site.</p>
+      <div class="row" id="restoreExcludeRow">
+        <label for="restoreExclude">Inline mode: never restore inside (CSS selectors):</label>
+        <input type="text" id="restoreExclude" style="flex:1;min-width:240px;font-family:ui-monospace,monospace" />
+      </div>
+      <label class="row"><input type="checkbox" id="highlightRestored" /> Highlight placeholders whose original value is known</label>
+      <label class="row"><input type="checkbox" id="restoreOnCopy" /> When copying a response (Ctrl+C or the site's "Copy" button), copy the original values</label>
+      <p class="hint">Placeholders only resolve on the site where they were created: a placeholder from claude.ai is never
+        shown on another site. The compose area always shows exactly what will be sent.</p>
+      <div class="row">
+        <label for="mode">Default replacement:</label>
+        <select id="mode">
+          <option value="placeholder">Consistent placeholder — [EMAIL_1], [IPV4_2]…</option>
+          <option value="mask">Fixed text</option>
+          <option value="asterisks">Asterisks — ********</option>
+        </select>
+        <input type="text" id="maskText" placeholder="[REDACTED]" />
+      </div>
+      <p class="hint">Each rule can define its own replacement text, which takes precedence over this mode.
+        Restoring only works with consistent placeholders: masks and asterisks cannot be undone.
+        Placeholder mappings are kept in memory only and are cleared when the browser closes.</p>
+    </section>
+
+    <section>
+      <h2>Memory</h2>
+      <p class="hint">
+        Your own keywords: people, companies, clients, projects… They are always obfuscated (ignoring case, accents
+        and spacing) and each category gets its own placeholder: <code>[PERSON_1]</code>, <code>[CLIENT_1]</code>…
+        By default a term matches as a whole word (<code>hooli</code> in <code>HOOLI_DC</code> or <code>hooli.local</code>);
+        with <i>Partial match</i> it also matches inside other words (<code>HooliDC</code> → <code>[CORP_1]DC</code>).
+        Memory is stored <b>only in this browser</b>, never in the repository. You can also select text on any site and
+        right-click → <i>Add to Trellis memory</i>, or use the toolbar popup.
+      </p>
+      <div class="row">
+        <input type="text" id="memTerm" placeholder="e.g. Jane Doe, Acme Corp, Project Phoenix" style="flex:1;min-width:220px" />
+        <input type="text" id="memCategory" list="memCategories" class="category" title="Pick a category or type a new one" />
+        <label title="Also match inside other words: &quot;hooli&quot; in &quot;HooliDC&quot;"><input type="checkbox" id="memPartial" /> Partial match</label>
+        <button id="memAdd" class="primary">Add</button>
+      </div>
+      <datalist id="memCategories"></datalist>
+      <details>
+        <summary class="hint">Add many at once or import a .txt file</summary>
+        <textarea id="memBulk" rows="4" placeholder="One per line"></textarea>
+        <div class="row">
+          <input type="text" id="memBulkCategory" list="memCategories" class="category" />
+          <label><input type="checkbox" id="memBulkPartial" /> Partial match</label>
+          <button id="memBulkAdd">Add all</button>
+          <label class="button">Import .txt… <input type="file" id="memImport" accept=".txt,.csv,.tsv,text/plain" multiple hidden /></label>
+          <button id="memExport" class="ghost">Export memory</button>
+        </div>
+      </details>
+      <div class="row">
+        <input type="text" id="memFilter" placeholder="Filter…" />
+        <span id="memCount" class="hint"></span>
+      </div>
+      <div class="table-wrap memory-wrap">
+        <table id="memory"><thead><tr><th>Term</th><th>Category</th><th>Match</th><th></th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Rules</h2>
+      <p class="hint">
+        <b>Keywords</b>: separated by commas or new lines, ignoring case and accents.
+        <b>Regex</b>: JavaScript syntax; default flags <code>gi</code> (remove the <code>i</code> to make it case-sensitive).
+        When two rules match the same text, the longest match wins.
+      </p>
+      <div class="table-wrap">
+        <table id="rules">
+          <thead>
+            <tr>
+              <th>On</th><th>Name</th><th>Type</th><th>Pattern / keywords</th><th>Options</th><th>Replace with</th><th></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="row">
+        <button id="addKeyword">+ Keywords</button>
+        <button id="addRegex">+ Regex</button>
+        <button id="resetRules" class="ghost">Restore default rules</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Generic word lists</h2>
+      <p class="hint">
+        Common first names and surnames in many languages, shipped with the extension (<code>wordlists/</code> folder).
+        If you edit the files, reload the extension (↻) in <code>chrome://extensions</code>.
+      </p>
+      <div id="wordlists"></div>
+      <h3>Exceptions</h3>
+      <p class="hint">Never obfuscated by the generic lists (rules and memory still apply). For false positives such as
+        Claude, Ruby, Julia, Will… File: <span id="excFile"></span></p>
+      <textarea id="exceptionsExtra" rows="3" placeholder="Your own exceptions, one per line"></textarea>
+      <h3>Never obfuscate</h3>
+      <p class="hint">Values that no rule or list should ever hide (false positives marked with "Never hide" in the
+        in-page panel). Memory entries still apply.</p>
+      <textarea id="allowlist" rows="3" placeholder="One per line"></textarea>
+    </section>
+
+    <section>
+      <h2>Try it</h2>
+      <div class="test">
+        <textarea id="testIn" rows="7" placeholder="Paste some sample text here…">Hi, I'm Emma Wilson (emma.wilson@example.com) and the server is at 192.168.1.20.
+password=Sup3rS3cret! and token: sk-proj-abcdefghijklmnopqrstuvwxyz123456
+Card 4111 1111 1111 1111, IBAN GB82 WEST 1234 5698 7654 32</textarea>
+        <textarea id="testOut" rows="7" readonly></textarea>
+      </div>
+      <p class="hint">The test uses the current form settings, even if they are not saved yet.</p>
+    </section>
+
+    <section>
+      <h2>Domains</h2>
+      <p class="hint">Subdomains are included. When you add a new one, Chrome asks for permission for that site.
+        Open tabs update automatically; if not, reload them.</p>
+      <ul id="domains"></ul>
+      <div class="row">
+        <input type="text" id="newDomain" placeholder="e.g. chat.example.com" />
+        <button id="addDomain">Add domain</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Import / export</h2>
+      <p class="hint">The export includes your memory: keep the file private. Only import files you trust; domains
+        are never imported (add them in the Domains section).</p>
+      <div class="row">
+        <button id="export">Export settings</button>
+        <label class="button">Import… <input type="file" id="import" accept="application/json" hidden /></label>
+      </div>
+    </section>
+  </main>
+
+  <script src="obfuscator.js"></script>
+  <script src="defaults.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

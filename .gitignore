@@ -1,0 +1,9 @@
+dist/
+node_modules/
+*.zip
+.DS_Store
+# Personal exports (they may contain your memory)
+trellis-settings*.json
+trellis-memory*.tsv
+test-results/
+playwright-report/
