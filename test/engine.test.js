@@ -238,3 +238,14 @@ test('outdated default patterns are upgraded, edited ones are kept; imported rul
   assert.equal({}.polluted, undefined);
   assert.equal(globalThis.trellisSanitizeRule({ pattern: 1 }), null);
 });
+
+test('the store package contains everything the extension references', () => {
+  const { execFileSync } = require('node:child_process');
+  const out = execFileSync('node', [path.join(__dirname, '..', 'scripts', 'package.js')], { encoding: 'utf8' });
+  assert.match(out, /trellis-\d+\.\d+\.\d+\.zip: \d+ files/);
+  const listing = execFileSync('unzip', ['-Z1', out.split(':')[0]], { cwd: path.join(__dirname, '..'), encoding: 'utf8' }).split('\n');
+  for (const f of ['manifest.json', 'content.js', 'panel.html', 'welcome.html', 'icons/icon128.png', 'wordlists/first-names.txt']) {
+    assert.ok(listing.includes(f), `missing ${f}`);
+  }
+  assert.ok(!listing.some((f) => f.startsWith('test/') || f.startsWith('node_modules/') || f.startsWith('docs/')));
+});

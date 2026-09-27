@@ -89,7 +89,9 @@ chrome.contextMenus.onClicked.addListener((info) => {
   trellisAddToMemory([info.selectionText], String(info.menuItemId).slice(4));
 });
 
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
+  // First install: explain what Trellis reads and that nothing leaves the browser.
+  if (details.reason === 'install') chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
   await migrateToMemory();
   compileWordlists();
   createMenus();

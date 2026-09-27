@@ -129,7 +129,8 @@ issues (T1, T2) found in an external security review.
 
 ## Install
 
-Trellis is not on the Chrome Web Store yet. To install it from source:
+Trellis is not on the Chrome Web Store yet (the submission kit is in [`docs/store/`](docs/store/chrome-web-store.md)).
+To install it from source:
 
 1. Clone or download this repository.
 2. Open `chrome://extensions` and turn on **Developer mode**.
@@ -185,6 +186,8 @@ Each rule can also define its own replacement text.
 - When several rules match the same text, the longest match wins.
 
 ## Privacy model
+
+See also the [privacy policy](PRIVACY.md).
 
 Trellis treats the chat site itself as untrusted: it is the party your data is hidden from.
 
@@ -287,6 +290,8 @@ Do not put private names here: use the Memory instead, which never ends up in th
 npm run check      # manifest, encoding and JavaScript syntax
 npm test           # unit tests of the engine (node --test, no dependencies)
 
+npm run package    # checks + unit tests, then builds dist/trellis-<version>.zip for the store
+
 npm ci                                  # once: installs Playwright
 npx playwright install chromium         # once: downloads Chromium
 npm run test:e2e                        # end-to-end tests
@@ -313,6 +318,10 @@ the run (`npx playwright show-trace <trace.zip>`).
 | `defaults.js` | Default settings, rules and shared helpers |
 | `options.*`, `popup.*` | User interface |
 | `workbench.*` | Workbench page: obfuscate and reveal inside the extension |
+| `welcome.html` | Shown on install: what Trellis reads and that nothing leaves the browser |
+| `icons/` | Extension icons (`icon512.png` is the source for store graphics) |
+| `scripts/` | `package.js` (store zip) and `check-encoding.js` |
+| `docs/store/` | Chrome Web Store listing texts, permission justifications, screenshots and promo tile |
 | `wordlists/` | Generic word lists |
 | `test/` | Unit tests (`*.test.js`) and end-to-end tests (`e2e/`) |
 

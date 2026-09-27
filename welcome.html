@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Welcome to Trellis</title>
+  <link rel="icon" href="icons/icon32.png" />
+  <link rel="stylesheet" href="options.css" />
+  <style>
+    main { max-width: 760px; }
+    .hero { display: flex; gap: 16px; align-items: center; margin-top: 24px; }
+    .hero img { width: 72px; height: 72px; }
+    .hero h1 { font-size: 26px; margin: 0; }
+    .hero p { margin: 4px 0 0; color: var(--muted); }
+    section h2 { font-size: 16px; }
+    ul { padding-left: 20px; }
+    li { margin: 6px 0; }
+    .actions-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+    a.button { text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="hero">
+      <img src="icons/icon128.png" alt="" />
+      <div>
+        <h1>Welcome to Trellis</h1>
+        <p>Keep sensitive data out of AI chatbots.</p>
+      </div>
+    </div>
+
+    <section>
+      <h2>What Trellis does</h2>
+      <ul>
+        <li>On AI chat sites (ChatGPT, Claude, Gemini and others you choose), it checks the text you <b>paste,
+          drop or type</b> and replaces personal or confidential data with placeholders such as
+          <code>[EMAIL_1]</code> before the site receives it.</li>
+        <li>When the reply comes back, you can see the original values on hover and copy them, only on your screen.</li>
+        <li>If a message with data you typed is about to be sent without being obfuscated, Trellis stops it.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>What Trellis reads, and what it does not do</h2>
+      <ul>
+        <li><b>It reads</b> the text you paste, drop or type in the message box, and the replies shown on the chat
+          sites in your list, in order to find sensitive data and show original values.</li>
+        <li><b>Everything happens in your browser.</b> Trellis has no server, makes no network requests of its own,
+          collects no analytics and shares nothing with anyone, including its developers.</li>
+        <li><b>Your memory</b> (your own keywords) and your settings are stored only in this browser. The link between
+          placeholders and original values is kept in memory and deleted when the browser closes.</li>
+        <li><b>It only runs</b> on the chat sites in your list. You can add or remove sites in the settings.</li>
+      </ul>
+      <p class="hint">Full details: <a href="https://github.com/daffi1238/Trellis/blob/main/PRIVACY.md" target="_blank">privacy policy</a>
+        · <a href="https://github.com/daffi1238/Trellis" target="_blank">source code</a>.</p>
+    </section>
+
+    <section>
+      <h2>Get started</h2>
+      <ol>
+        <li>Reload any chat tab that was already open.</li>
+        <li>Add the names, companies, clients or projects you want to hide to your <b>memory</b>: in the settings,
+          from the toolbar popup, or by selecting text on any page and choosing <i>Add to Trellis memory</i>.</li>
+        <li>Paste instead of typing when you can: pasted text is checked before the site ever sees it.</li>
+      </ol>
+      <div class="actions-row">
+        <a class="button primary" href="options.html">Open settings</a>
+        <a class="button" href="workbench.html">Open the workbench</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
