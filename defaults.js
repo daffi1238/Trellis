@@ -23,6 +23,12 @@ globalThis.TRELLIS_DEFAULTS = {
   presend: 'obfuscate',
   // Warn as soon as something sensitive is typed (the site already receives keystrokes).
   typingWarning: true,
+  // Obfuscate typed data in the message box when the user pauses or leaves the box, so protection does not
+  // depend on recognising the site's Send control.
+  autoObfuscateTyped: true,
+  // Network backstop: block a request that contains a sensitive value typed in the message box and not
+  // obfuscated (e.g. sent through a control Trellis did not recognise).
+  egressGuard: true,
   // Memory: your own keywords (people, companies, clients, projects...). Stored only in this browser
   // (chrome.storage.local), never in the repository. [{ term, category }]
   memory: [],
@@ -109,7 +115,8 @@ globalThis.TRELLIS_DEFAULTS = {
       id: 'email',
       name: 'Email',
       type: 'regex',
-      pattern: '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}',
+      // Bounded, dot-separated labels: no catastrophic backtracking on hostile input like "a@a.a.a.a…".
+      pattern: '(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\\.){1,8}[A-Za-z]{2,24}(?![A-Za-z0-9-])',
       flags: 'g',
       replacement: '',
       enabled: true
@@ -165,10 +172,37 @@ globalThis.TRELLIS_DEFAULTS = {
 };
 
 // Stored settings over defaults, migrating keys from earlier versions.
+// Default patterns replaced in later versions, upgraded in stored settings unless the user edited them.
+const TRELLIS_OUTDATED_PATTERNS = {
+  email: '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}' // quadratic backtracking on hostile input
+};
+
 globalThis.trellisMergeSettings = function (stored) {
   const settings = { ...structuredClone(globalThis.TRELLIS_DEFAULTS), ...stored };
   if (stored.restoreMode === undefined && stored.restoreResponses === false) settings.restoreMode = 'off';
+  if (Array.isArray(settings.rules)) {
+    settings.rules = settings.rules.map((r) => {
+      const current = globalThis.TRELLIS_DEFAULTS.rules.find((d) => d.id === r?.id);
+      return current && TRELLIS_OUTDATED_PATTERNS[r.id] === r.pattern ? { ...r, pattern: current.pattern } : r;
+    });
+  }
   return settings;
+};
+
+// Keeps only the known fields of a rule, with the right types (used for imported settings files).
+globalThis.trellisSanitizeRule = function (r) {
+  if (!r || typeof r !== 'object' || typeof r.pattern !== 'string') return null;
+  const rule = {
+    id: typeof r.id === 'string' ? r.id.slice(0, 64) : '',
+    name: typeof r.name === 'string' ? r.name.slice(0, 64) : 'Rule',
+    type: r.type === 'keyword' ? 'keyword' : 'regex',
+    pattern: r.pattern.slice(0, 5000),
+    replacement: typeof r.replacement === 'string' ? r.replacement.slice(0, 200) : '',
+    enabled: r.enabled !== false
+  };
+  if (rule.type === 'keyword') rule.wholeWord = r.wholeWord !== false;
+  else rule.flags = typeof r.flags === 'string' ? r.flags.replace(/[^dgimsuvy]/g, '') : 'gi';
+  return rule;
 };
 
 globalThis.trellisGetSettings = async function () {

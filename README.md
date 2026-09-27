@@ -21,6 +21,13 @@ You see:       …the LLM's answer; hover a placeholder to see the original, or 
 - **Obfuscate on paste**: the pasted text is checked before the site's editor sees it.
 - **Check before sending**: text you type by hand is checked on Enter or the Send button. Matches are replaced
   in the editor and you confirm by sending again (or sending is simply blocked, if you prefer).
+- **Network backstop**: if typed data that was not obfuscated is about to leave in a request (`fetch`,
+  `XMLHttpRequest`, `WebSocket`, `sendBeacon`), for example because the site sent it through a control Trellis did
+  not recognise, the request is blocked and you are told why. Only values you typed in the message box count, so
+  the site's own requests (e.g. with your account email) are not affected.
+- **Obfuscate typed text on a pause**: as a backstop that does not depend on recognising the site's Send
+  control, typed data is obfuscated in the message box when you pause or leave it. A value the caret is still
+  touching (e.g. half an email address) is left alone until it is complete.
 - **Consistent placeholders**: the same value always becomes the same placeholder (`[EMAIL_1]`) across tabs,
   so the LLM keeps the context without seeing the data.
 - **Reveal on hover**: placeholders with a known original are highlighted; hover one to see the original in a
@@ -92,6 +99,9 @@ You see:       …the LLM's answer; hover a placeholder to see the original, or 
 | Copy button returns the original values | ✅ | 🧪 |
 | "Never" mode (show placeholders only) | ❌ | 🧪 |
 | Check before sending (Enter / Send button) | ❌ | 🧪 |
+| Obfuscate typed text on a pause | ❌ | 🧪 |
+| Network backstop (blocks unobfuscated typed data) | ❌ | 🧪 |
+| HTML-only paste, pasted/dropped text files | ❌ | 🧪 |
 | Warning while typing | ❌ | 🧪 |
 | Drag and drop | ❌ | 🧪 |
 | Clipboard-read permission guard | ❌ | 🧪 |
@@ -194,9 +204,10 @@ Trellis tries to leave as little trace as possible, and the end-to-end tests in 
 
 What remains observable:
 
-- **The Copy-button bridge.** To restore originals when you use a site's own Copy buttons, a small script in the
-  page's context wraps `navigator.clipboard.writeText`/`write` and hands the text (with placeholders only) to the
-  extension through a DOM event. A site that inspects those functions can notice it. It never sees originals.
+- **The page-world scripts.** Two small scripts run in the page's context: the Copy-button bridge wraps
+  `navigator.clipboard.writeText`/`write`, and the network backstop wraps `fetch`, `XMLHttpRequest`, `WebSocket`
+  and `sendBeacon`. They hand text the page already has to the extension through DOM events and never receive
+  rules, memory or originals. A site that inspects those functions can notice them.
 - **The placeholders themselves.** `[EMAIL_1]` in a message is a recognizable pattern, both for the site and for
   the LLM. The *mask* mode (`[REDACTED]`) is less specific.
 - **Its effects**: the pasted text differs from the clipboard, a send can be cancelled, and a few elements appear
@@ -215,6 +226,21 @@ What remains observable:
   on sites you trust.
 - **Copied originals are on your clipboard.** A site you granted clipboard-read permission could read them.
 - **Your own compromised browser or other malicious extensions** are out of scope.
+
+## Limitations
+
+- **The Send control is recognised heuristically**: known send buttons, plus any button-like control (`button`,
+  `role="button"`, `input[type=submit]`) next to the message box. Enter is always intercepted, typed data is
+  obfuscated when you pause, and the network backstop blocks requests with typed data that was not obfuscated.
+- **The network backstop is a safety net, not a barrier against a hostile site**: it does not see requests made
+  from Web Workers or with streamed bodies, and a site that wanted to could bypass it.
+- **Files uploaded with the site's own upload button** (PDF, Word, images…) are not obfuscated. Pasted or dropped
+  text files, and clipboard content that only has HTML, are converted to text and checked like any paste.
+- **Rules and lists cannot catch everything.** Names that are not in any list and data in formats no rule covers
+  go through unchanged: add them to your memory (the in-page panel suggests likely candidates).
+- **Placeholders the LLM rewrites** (e.g. `CORP_1_DC` instead of `[CORP_1]_DC`) may not be recognised.
+- **After the browser restarts**, placeholders in old conversations can no longer be revealed.
+- **Sites change their markup**; if something stops working on a specific site, please open an issue.
 
 ## Configuration
 
@@ -241,7 +267,7 @@ Do not put private names here: use the Memory instead, which never ends up in th
 ## Development
 
 ```bash
-npm run check      # manifest and JavaScript syntax
+npm run check      # manifest, encoding and JavaScript syntax
 npm test           # unit tests of the engine (node --test, no dependencies)
 
 npm ci                                  # once: installs Playwright
@@ -264,6 +290,7 @@ the run (`npx playwright show-trace <trace.zip>`).
 | `background.js` | Registers the content scripts, compiles word lists and memory, assigns placeholders, context menu |
 | `content.js` | Paste interception, check before sending, local restore, copy with originals |
 | `clipboard-main.js` | Runs in the page to intercept the sites' "Copy" buttons (never sees originals) |
+| `egress-main.js` | Runs in the page: network backstop, asks the extension before each request is sent |
 | `panel.*` | In-page panel (extension page in a cross-origin iframe) |
 | `obfuscator.js` | Obfuscation engine: pure JS, no DOM, unit-tested with node |
 | `defaults.js` | Default settings, rules and shared helpers |

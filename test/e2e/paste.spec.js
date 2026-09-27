@@ -46,3 +46,17 @@ test('long pastes become an attachment that holds placeholders, and it is never 
   await page.click('.card');
   await expect(page.locator('.preview')).toContainText('[EMAIL_1]');
 });
+
+test('clipboard content that only has HTML is obfuscated too (security review T2)', async ({ openChat }) => {
+  const page = await openChat('https://claude.ai/new');
+  await page.evaluate(() => navigator.clipboard.write([new ClipboardItem({
+    'text/html': new Blob(['<p>Contact <b>Laura Martínez</b> at laura@example.com</p><p>Card 4111 1111 1111 1111</p>'], { type: 'text/html' })
+  })]));
+  await page.click('#editor');
+  await page.keyboard.press('ControlOrMeta+V');
+  await expect(page.locator('#editor')).toContainText('[EMAIL_1]');
+  const text = await page.locator('#editor').innerText();
+  expect(text).toContain('Contact [NAME_1] [SURNAME_1] at [EMAIL_1]');
+  expect(text).toContain('Card [CARD_1]');
+  expect(text).not.toMatch(/laura@example\.com|4111/);
+});

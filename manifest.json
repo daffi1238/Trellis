@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Trellis",
-  "version": "2.4.1",
+  "version": "2.5.0",
   "description": "Keeps sensitive data out of AI chatbots: obfuscates on paste and send, and shows the originals only to you.",
   "permissions": [
     "storage",

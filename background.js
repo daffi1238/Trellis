@@ -2,9 +2,10 @@ importScripts('defaults.js', 'obfuscator.js');
 
 const SCRIPT_ID = 'trellis-content';
 const SCRIPT_FILES = ['defaults.js', 'obfuscator.js', 'content.js'];
-// Intercepts the site's own "Copy" buttons; runs in the page world and never sees original values.
-const MAIN_SCRIPT_ID = 'trellis-clipboard';
-const MAIN_SCRIPT_FILES = ['clipboard-main.js'];
+// Page-world scripts: the bridge for the site's own "Copy" buttons and the network backstop. They never
+// receive rules, memory or original values.
+const MAIN_SCRIPT_ID = 'trellis-page';
+const MAIN_SCRIPT_FILES = ['clipboard-main.js', 'egress-main.js'];
 
 // Registers the content scripts only on configured domains we have permission for.
 async function syncContentScripts() {

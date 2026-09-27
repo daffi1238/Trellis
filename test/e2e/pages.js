@@ -12,8 +12,12 @@ const claude = `<!doctype html><html><body>
   <div id="attachments"></div>
   <div id="editor" contenteditable="true" style="min-height:40px;border:1px solid #ccc"></div>
   <button id="send" aria-label="Send message">↑</button>
+  <div id="submitDiv" role="button" tabindex="0">Submit</div>
 </fieldset>
 <button id="copyText">Copy</button>
+<div id="rawSend">send (raw)</div>
+<div id="xhrSend">send (xhr)</div>
+<div id="beaconSend">send (beacon)</div>
 <button id="copyRich">Copy rich</button>
 <script>
   window.sent = [];
@@ -59,6 +63,25 @@ const claude = `<!doctype html><html><body>
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   });
   document.getElementById('send').addEventListener('click', send);
+  // A non-standard send control (no <button>, no known label), as found in the security review.
+  document.getElementById('submitDiv').addEventListener('click', send);
+
+  // Sends the message straight to the API from a control Trellis cannot recognise (a plain <div>), clearing
+  // the box first, like many chat apps do. window.network records what the page believes happened.
+  window.network = [];
+  const takeText = () => { const t = editor.innerText; editor.innerHTML = ''; return JSON.stringify({ prompt: t }); };
+  rawSend.addEventListener('click', () => {
+    fetch('/api/send', { method: 'POST', headers: { 'content-type': 'application/json' }, body: takeText() })
+      .then(() => network.push('fetch ok'), (e) => network.push('fetch failed: ' + e.message));
+  });
+  xhrSend.addEventListener('click', () => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/send');
+    xhr.onload = () => network.push('xhr ok');
+    xhr.onerror = () => network.push('xhr failed');
+    xhr.send(takeText());
+  });
+  beaconSend.addEventListener('click', () => network.push('beacon ' + navigator.sendBeacon('/api/beacon', takeText())));
 
   // The model's reply arrives in chunks, like a streamed response.
   window.reply = (text) => {

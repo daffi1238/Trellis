@@ -7,7 +7,7 @@ let dirty = false;
 // Keys saved with the Save button (domains are saved immediately because they involve permissions).
 const SAVED_KEYS = [
   'enabled', 'mode', 'maskText', 'showToast', 'restoreMode', 'highlightRestored', 'restoreOnCopy',
-  'restoreExclude', 'presend', 'typingWarning', 'showPanel', 'rules', 'wordlists', 'exceptionsExtra', 'allowlist'
+  'restoreExclude', 'presend', 'typingWarning', 'autoObfuscateTyped', 'egressGuard', 'showPanel', 'rules', 'wordlists', 'exceptionsExtra', 'allowlist'
 ];
 // Memory and domains are saved immediately, but are included in export/import.
 const EXPORT_KEYS = [...SAVED_KEYS, 'domains', 'memory', 'memoryCategories'];
@@ -39,6 +39,8 @@ function renderGeneral() {
   $('#restoreOnCopy').checked = state.restoreOnCopy;
   $('#typingWarning').checked = state.typingWarning;
   $('#showPanel').checked = state.showPanel;
+  $('#autoObfuscateTyped').checked = state.autoObfuscateTyped;
+  $('#egressGuard').checked = state.egressGuard;
   $('#presend').value = state.presend;
   $('#restoreExclude').value = state.restoreExclude;
   $('#mode').value = state.mode;
@@ -46,7 +48,7 @@ function renderGeneral() {
   $('#maskText').hidden = state.mode !== 'mask';
 }
 
-for (const id of ['enabled', 'showToast', 'typingWarning', 'showPanel', 'highlightRestored', 'restoreOnCopy']) {
+for (const id of ['enabled', 'showToast', 'typingWarning', 'autoObfuscateTyped', 'egressGuard', 'showPanel', 'highlightRestored', 'restoreOnCopy']) {
   $('#' + id).addEventListener('change', (e) => {
     state[id] = e.target.checked;
     markDirty();
@@ -461,7 +463,12 @@ $('#import').addEventListener('change', async (e) => {
   try {
     const data = JSON.parse(await file.text());
     if (!Array.isArray(data.rules)) throw new Error('missing "rules"');
-    Object.assign(state, pick(data, SAVED_KEYS));
+    // Only known keys, and rules reduced to their known fields (a settings file is untrusted input).
+    const imported = pick(data, SAVED_KEYS);
+    imported.rules = data.rules.map(trellisSanitizeRule).filter(Boolean);
+    for (const [key, value] of Object.entries(imported)) {
+      if (typeof value === typeof TRELLIS_DEFAULTS[key] || (Array.isArray(value) && Array.isArray(TRELLIS_DEFAULTS[key]))) state[key] = value;
+    }
     if (Array.isArray(data.memory)) {
       for (const m of data.memory) {
         if (m && typeof m.term === 'string') await trellisAddToMemory([m.term], m.category, { partial: !!m.partial });

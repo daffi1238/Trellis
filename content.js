@@ -95,11 +95,52 @@
 
   // ================= Paste and drop =================
 
+  // Plain text of a clipboard or drag payload. Some sources only provide HTML, or a text file: those are
+  // converted here, inside the extension, so they are checked like any other text instead of slipping through.
+  const TEXT_FILE = /^text\/|\/(json|xml|csv|x-yaml)$|\.(txt|md|csv|tsv|json|log|ya?ml|xml|ini|conf|env)$/i;
+
+  function htmlToText(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html'); // inert document: no scripts, no requests
+    doc.querySelectorAll('script, style, template, noscript').forEach((n) => n.remove());
+    doc.querySelectorAll('br').forEach((n) => n.replaceWith('\n'));
+    doc.querySelectorAll('p, div, li, tr, h1, h2, h3, h4, h5, h6, pre, blockquote').forEach((n) => n.append('\n'));
+    return (doc.body?.textContent || '').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
+  function payloadText(data) {
+    const text = data?.getData('text/plain');
+    if (text) return { text };
+    const html = data?.getData('text/html');
+    if (html) return { text: htmlToText(html), fromHtml: true };
+    const file = [...(data?.files || [])].find((f) => TEXT_FILE.test(f.type) || TEXT_FILE.test(f.name));
+    return file ? { file } : {};
+  }
+
+  // Text files cannot be read synchronously: the paste/drop is cancelled, the file read and its content
+  // inserted as obfuscated text (or as is, if there is nothing to hide).
+  async function insertTextFile(target, file) {
+    let text;
+    try {
+      text = await file.text();
+    } catch (err) {
+      showToast('⛔ File not pasted', '', 'Trellis could not read the file, so it was not handed to the page.');
+      return;
+    }
+    target.focus?.();
+    if (!obfuscateInto(target, text)) insertText(target, text);
+  }
+
   // Capturing on window runs before any document or editor listener.
   on(window, 'paste', (e) => {
     if (reinjecting || !e.isTrusted || !settings.enabled || !siteActive()) return;
-    const text = e.clipboardData?.getData('text/plain');
-    if (!text) return; // images/files are left alone
+    const { text, file } = payloadText(e.clipboardData);
+    if (file) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      insertTextFile(e.target, file);
+      return;
+    }
+    if (!text) return; // images and other files are left alone
     lastPasted = text; // kept in this isolated script only, for suggestions
     scheduleSuggestions(300);
     if (obfuscateInto(e.target, text)) {
@@ -111,19 +152,20 @@
   // Dropped text would reach the page in clear through the event's dataTransfer.
   on(window, 'drop', (e) => {
     if (!e.isTrusted || !settings.enabled || !siteActive()) return;
-    const text = e.dataTransfer?.getData('text/plain');
-    if (!text) return;
-    const matches = Engine.findAll(text, settings);
-    if (!matches.length) return;
+    const { text, file } = payloadText(e.dataTransfer);
+    if (!text && !file) return;
+    const target = editorFor(e.target) || (lastEditor?.isConnected ? lastEditor : null);
+    const matches = text ? Engine.findAll(text, settings) : [];
+    if (text && !matches.length) return;
     e.preventDefault();
     e.stopImmediatePropagation();
-    const target = editorFor(e.target) || (lastEditor?.isConnected ? lastEditor : null);
     if (!target) {
-      showToast('⛔ Drop blocked', summarize(matches), 'The dropped text contains sensitive data. Paste it into the message box instead.');
+      showToast('⛔ Drop blocked', matches.length ? summarize(matches) : '', 'Paste it into the message box instead, so Trellis can check it.');
       return;
     }
     target.focus();
-    obfuscateInto(target, text, matches);
+    if (file) insertTextFile(target, file);
+    else obfuscateInto(target, text, matches);
   }, true);
 
   // Obfuscates `text` and inserts it into `target`. Returns false when there is nothing to hide.
@@ -792,15 +834,163 @@
     else if (editorFor(e.target)) afterSend();
   }, true);
 
+  // Any button-like control counts as a possible Send when it is a known send button or sits next to the
+  // message box (same form/fieldset or a close common container): sites use <div role="button">, "Submit",
+  // arrows... Clicking one while the message has unobfuscated data obfuscates it first and cancels the click.
+  const BUTTON_LIKE = 'button, [role="button"], input[type="submit"], input[type="button"], input[type="image"]';
+
+  function sendTarget(target) {
+    const btn = target instanceof Element ? target.closest(BUTTON_LIKE) : null;
+    if (!btn || editorFor(btn)) return null;
+    if (btn.matches(SEND_BUTTON)) return { btn, ed: composerForButton(btn) };
+    const ed = lastEditor?.isConnected ? lastEditor : null;
+    if (!ed) return null;
+    const scope = ed.closest('form, fieldset') || nearContainer(ed);
+    return scope?.contains(btn) ? { btn, ed } : null;
+  }
+
+  // A few levels up from the editor: the box that usually holds the editor and its toolbar.
+  function nearContainer(ed) {
+    let el = ed;
+    for (let i = 0; i < 4 && el.parentElement && el.parentElement !== document.body; i++) el = el.parentElement;
+    return el;
+  }
+
   // Some sites send on pointerdown/mousedown and others on click: watch all three.
   for (const type of ['pointerdown', 'mousedown', 'click']) {
     on(window, type, (e) => {
       if (!e.isTrusted || !presendActive()) return;
-      const btn = e.target instanceof Element ? e.target.closest(SEND_BUTTON) : null;
-      if (!btn) return;
-      if (checkBeforeSend(composerForButton(btn))) cancel(e);
+      const hit = sendTarget(e.target);
+      if (!hit) return;
+      if (checkBeforeSend(hit.ed)) cancel(e);
       else if (type === 'click') afterSend();
     }, true);
+  }
+
+  // ---------- Obfuscate typed text on a pause ----------
+  // The check on Send depends on recognising the Send control. As a backstop that does not, typed data is
+  // obfuscated in the message box itself as soon as the user pauses (or leaves the box). A match the caret is
+  // still touching is left alone while typing (it may be incomplete, e.g. half an email address).
+  let autoTimer = null;
+
+  function autoActive() {
+    return settings.enabled && settings.autoObfuscateTyped && siteActive();
+  }
+
+  on(document, 'input', (e) => {
+    if (!e.isTrusted || !autoActive()) return;
+    const ed = editorFor(e.target);
+    if (!ed || !isVisible(ed)) return;
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => autoObfuscate(ed, true), 1200);
+  }, true);
+
+  on(document, 'focusout', (e) => {
+    if (!e.isTrusted || !autoActive()) return;
+    const ed = editorFor(e.target);
+    if (!ed || ed.contains(e.relatedTarget)) return;
+    clearTimeout(autoTimer);
+    autoObfuscate(ed, false);
+  }, true);
+
+  // Text nodes of an editor with their offsets in the concatenated text.
+  function textNodes(ed) {
+    const out = [];
+    let pos = 0;
+    const walker = document.createTreeWalker(ed, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      out.push({ node: walker.currentNode, start: pos });
+      pos += walker.currentNode.nodeValue.length;
+    }
+    return out;
+  }
+
+  function caretOffset(ed) {
+    if (ed.tagName === 'TEXTAREA') return document.activeElement === ed ? ed.selectionEnd : -1;
+    const sel = document.getSelection();
+    if (!sel?.rangeCount || !ed.contains(sel.focusNode)) return -1;
+    const hit = textNodes(ed).find((t) => t.node === sel.focusNode);
+    return hit ? hit.start + sel.focusOffset : -1;
+  }
+
+  function placeCaret(ed, offset) {
+    if (offset < 0) return;
+    if (ed.tagName === 'TEXTAREA') {
+      ed.setSelectionRange(offset, offset);
+      return;
+    }
+    const nodes = textNodes(ed);
+    const t = nodes.find((n) => offset <= n.start + n.node.nodeValue.length) || nodes[nodes.length - 1];
+    if (!t) return;
+    const range = document.createRange();
+    range.setStart(t.node, Math.min(offset - t.start, t.node.nodeValue.length));
+    range.collapse(true);
+    const sel = document.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  // Matches in the editor with offsets in the concatenated text (per text node, like the check on Send).
+  function editorMatches(ed, s) {
+    if (ed.tagName === 'TEXTAREA') return Engine.findAll(ed.value, s).map((m) => ({ ...m, gStart: m.start, gEnd: m.end }));
+    const out = [];
+    for (const t of textNodes(ed)) {
+      for (const m of Engine.findAll(t.node.nodeValue, s)) out.push({ ...m, gStart: t.start + m.start, gEnd: t.start + m.end });
+    }
+    return out;
+  }
+
+  async function autoObfuscate(ed, whileTyping) {
+    if (fixing || dead || !ed.isConnected || !autoActive()) return;
+    const caret = whileTyping ? caretOffset(ed) : -1;
+    const eligible = (m) => !(caret >= m.gStart && caret <= m.gEnd);
+    const first = editorMatches(ed, settings).filter(eligible);
+    if (!first.length) return;
+    fixing = true;
+    try {
+      const pending = Engine.pendingPlaceholders(first, settings, session);
+      const ok = pending.length ? await allocate(pending) : true;
+      if (!ok) return; // the check on Send (which falls back to a mask) still applies
+      // The text may have changed while placeholders were assigned: recompute, and replace from the end so
+      // earlier offsets stay valid.
+      const now = whileTyping ? caretOffset(ed) : -1;
+      const matches = editorMatches(ed, settings).filter((m) => !(now >= m.gStart && now <= m.gEnd));
+      let shift = 0;
+      for (const m of [...matches].reverse()) {
+        const repl = Engine.replacementFor(m, settings, session);
+        if (!replaceAt(ed, m.gStart, m.gEnd, repl)) break;
+        if (now >= m.gEnd) shift += repl.length - (m.gEnd - m.gStart);
+      }
+      if (whileTyping) placeCaret(ed, now + shift);
+      if (matches.length && settings.showToast) showToast(countTitle(matches.length), summarize(matches));
+    } finally {
+      fixing = false;
+    }
+    scheduleSuggestions(300);
+  }
+
+  // Replaces [start, end) of the editor's text with `text` through a normal edit (execCommand), so the
+  // site's editor keeps its state and formatting.
+  function replaceAt(ed, start, end, text) {
+    if (ed.tagName === 'TEXTAREA') {
+      ed.setSelectionRange(start, end);
+      if (!document.execCommand('insertText', false, text)) {
+        ed.setRangeText(text, start, end, 'end');
+        ed.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      return true;
+    }
+    const nodes = textNodes(ed);
+    const a = nodes.find((t) => start >= t.start && start < t.start + t.node.nodeValue.length);
+    const b = nodes.find((t) => end > t.start && end <= t.start + t.node.nodeValue.length);
+    if (!a || !b) return false;
+    const range = document.createRange();
+    range.setStart(a.node, start - a.start);
+    range.setEnd(b.node, end - b.start);
+    const sel = document.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return document.execCommand('insertText', false, text);
   }
 
   on(window, 'submit', (e) => {
@@ -875,6 +1065,88 @@
     }
     return null;
   }
+
+  // ================= Network backstop =================
+  // Last line of defence when a site sends typed text through a control Trellis did not recognise:
+  // egress-main.js (page world) asks here before every request. This script keeps a watch list of the
+  // sensitive values seen in the message box (refreshed on every keystroke, so it is current even if the
+  // site clears the box before sending) and blocks a request only if it contains one of them. The page
+  // never receives rules, memory or originals; it only learns "blocked" for data it already had.
+  const watch = new Map(); // value -> { value, rule, at }
+  const WATCH_TTL = 2 * 60 * 1000;
+  let lastBlockNotice = 0;
+
+  function egressActive() {
+    return !dead && settings.enabled && settings.egressGuard && siteActive();
+  }
+
+  function watchEditor(ed) {
+    if (!ed || !egressActive()) return;
+    const text = editorText(ed);
+    if (!text || text.length > 50000) return;
+    const now = Date.now();
+    for (const m of Engine.findAll(text, settings)) {
+      if (m.value.length >= 3) watch.set(m.value, { value: m.value, rule: m.rule, at: now });
+    }
+  }
+
+  on(document, 'input', (e) => {
+    if (e.isTrusted) watchEditor(editorFor(e.target));
+  }, true);
+  // Snapshot right before a possible send (the site may clear the box in its own handler).
+  for (const type of ['keydown', 'pointerdown']) {
+    on(window, type, (e) => {
+      if (e.isTrusted && lastEditor?.isConnected) watchEditor(lastEditor);
+    }, true);
+  }
+
+  // How a value may appear in a request body: as is, JSON-escaped (also \u-escaped) or URL-encoded.
+  function encodings(v) {
+    const json = JSON.stringify(v).slice(1, -1);
+    const ascii = json.replace(/[\u0080-\uffff]/g, (c) => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+    const uri = encodeURIComponent(v);
+    return [...new Set([v, json, ascii, uri, uri.replace(/%20/g, '+')])];
+  }
+
+  const WORD = /[\p{L}\p{N}_]/u;
+  function containsValue(body, value) {
+    const short = value.length < 8; // short values must stand alone ("Ana" is not in "Analytics")
+    for (const enc of encodings(value)) {
+      for (let i = body.indexOf(enc); i >= 0; i = body.indexOf(enc, i + 1)) {
+        if (!short || (!WORD.test(body[i - 1] || '') && !WORD.test(body[i + enc.length] || ''))) return true;
+      }
+    }
+    return false;
+  }
+
+  on(document, 'trellis:egress', (e) => {
+    if (!egressActive() || !watch.size) return;
+    const body = String(e.detail || '');
+    const now = Date.now();
+    const hits = [];
+    for (const [key, w] of watch) {
+      if (now - w.at > WATCH_TTL) watch.delete(key);
+      else if (containsValue(body, w.value)) hits.push(w);
+    }
+    if (!hits.length) return;
+    e.preventDefault();
+    if (now - lastBlockNotice > 1500) {
+      lastBlockNotice = now;
+      showToast('⛔ Trellis stopped a request', summarize(hits),
+        'It contained data you typed that was not obfuscated, so it was not sent. ' +
+        'The message box has been obfuscated if the text is still there: check it and send again.', 9000);
+    }
+    const ed = lastEditor?.isConnected ? lastEditor : null;
+    if (ed && !fixing) {
+      const matches = Engine.findAll(editorText(ed), settings);
+      if (matches.length) {
+        fixing = true;
+        fixEditor(ed, matches).finally(() => {
+          fixing = false;
+        });
+      }
+    }
+  });
 
   // ================= In-page panel =================
   // A small floating button, present only while Trellis has something to show on this page, opens a panel

@@ -43,7 +43,7 @@ test('textarea inside a form: the submit is checked too', async ({ openChat }) =
 });
 
 test('block mode: nothing is sent and the text is left for the user to edit', async ({ openChat, serviceWorker }) => {
-  await serviceWorker.evaluate(() => chrome.storage.local.set({ presend: 'block' }));
+  await serviceWorker.evaluate(() => chrome.storage.local.set({ presend: 'block', autoObfuscateTyped: false }));
   const page = await openChat('https://chatgpt.com/');
   await page.click('#prompt');
   await page.keyboard.type(TYPED);
@@ -76,4 +76,41 @@ test('warns as soon as something sensitive is typed, without showing it', async 
   expect(toast).toContain('Email ×1');
   expect(toast).not.toContain('laura@example.com');
   expect(await page.evaluate(() => window.sent)).toEqual([]);
+});
+
+test('a non-standard Send control next to the message box is checked too (security review T1)', async ({ openChat, serviceWorker }) => {
+  await serviceWorker.evaluate(() => chrome.storage.local.set({ autoObfuscateTyped: false }));
+  const page = await openChat('https://claude.ai/new');
+  await page.click('#editor');
+  await page.keyboard.type(TYPED);
+  await page.click('#submitDiv'); // <div role="button">Submit</div>
+
+  await expect(page.locator('#editor')).toHaveText(OBFUSCATED);
+  expect(await page.evaluate(() => window.sent.length)).toBe(0);
+  await page.click('#submitDiv');
+  await expect.poll(() => page.evaluate(() => window.sent.map((s) => s.text))).toEqual([OBFUSCATED]);
+});
+
+test('typed data is obfuscated on a pause, whatever control sends it', async ({ openChat }) => {
+  const page = await openChat('https://claude.ai/new');
+  await page.click('#editor');
+  await page.keyboard.type(TYPED);
+  await expect(page.locator('#editor')).toHaveText(OBFUSCATED, { timeout: 5000 });
+
+  // Keeps typing where the caret was left.
+  await page.keyboard.type(' today');
+  await expect(page.locator('#editor')).toHaveText(OBFUSCATED + ' today');
+
+  await page.click('#submitDiv');
+  await expect.poll(() => page.evaluate(() => window.sent.map((s) => s.text))).toEqual([OBFUSCATED + ' today']);
+});
+
+test('a value still being typed at the caret is left alone until it is complete', async ({ openChat }) => {
+  const page = await openChat('https://chatgpt.com/');
+  await page.click('#prompt');
+  await page.keyboard.type('write to laura@example.co');
+  await page.waitForTimeout(2000); // pause with the caret touching the (incomplete) address
+  await expect(page.locator('#prompt')).toHaveValue('write to laura@example.co');
+  await page.keyboard.type('m please');
+  await expect(page.locator('#prompt')).toHaveValue('write to [EMAIL_1] please', { timeout: 5000 });
 });

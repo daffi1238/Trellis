@@ -217,3 +217,24 @@ test('allowlist: never obfuscated by rules or lists, but memory still applies', 
   assert.equal(E.obfuscate('Mail support@example.com or jane@example.com about Acme', settings, E.createSession()).text,
     'Mail support@example.com or [EMAIL_1] about [CLIENT_1]');
 });
+
+test('hostile input does not make the default rules backtrack', () => {
+  const settings = base();
+  for (const text of ['a@' + 'a.'.repeat(40000), 'a'.repeat(40000) + '@']) {
+    const t0 = Date.now();
+    E.findAll(text, settings);
+    assert.ok(Date.now() - t0 < 200, 'too slow');
+  }
+});
+
+test('outdated default patterns are upgraded, edited ones are kept; imported rules are sanitized', () => {
+  const old = '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}';
+  const merged = globalThis.trellisMergeSettings({ rules: [{ id: 'email', pattern: old }, { id: 'mine', pattern: 'x+' }] });
+  assert.equal(merged.rules[0].pattern, globalThis.TRELLIS_DEFAULTS.rules.find((r) => r.id === 'email').pattern);
+  assert.equal(merged.rules[1].pattern, 'x+');
+  const rule = globalThis.trellisSanitizeRule(JSON.parse('{"pattern":"a","flags":"gi<x>","__proto__":{"polluted":1},"extra":true}'));
+  assert.deepEqual(Object.keys(rule).sort(), ['enabled', 'flags', 'id', 'name', 'pattern', 'replacement', 'type']);
+  assert.equal(rule.flags, 'gi');
+  assert.equal({}.polluted, undefined);
+  assert.equal(globalThis.trellisSanitizeRule({ pattern: 1 }), null);
+});
