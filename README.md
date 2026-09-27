@@ -92,23 +92,40 @@ You see:       …the LLM's answer; hover a placeholder to see the original, or 
 
 | Feature | Real site | Automated tests |
 |---|:---:|:---:|
+| **Obfuscating** | | |
 | Obfuscate on paste | ✅ | 🧪 |
 | Long pastes (attachment card) | ✅ | 🧪 |
+| HTML-only paste, pasted/dropped text files | ❌ | 🧪 |
+| Drag and drop | ❌ | 🧪 |
+| Check before sending (Enter / Send button) | ❌ | 🧪 |
+| Non-standard Send controls (e.g. `<div role="button">`) | ❌ | 🧪 |
+| Obfuscate typed text on a pause | ❌ | 🧪 |
+| Warning while typing | ❌ | 🧪 |
+| Network backstop (blocks unobfuscated typed data) | ❌ | 🧪 |
+| **Showing and copying originals** | | |
 | Placeholders highlighted and revealed on hover | ✅ | 🧪 |
 | Placeholders inside code blocks | ✅ | 🧪 |
 | Copy button returns the original values | ✅ | 🧪 |
 | "Never" mode (show placeholders only) | ❌ | 🧪 |
-| Check before sending (Enter / Send button) | ❌ | 🧪 |
-| Obfuscate typed text on a pause | ❌ | 🧪 |
-| Network backstop (blocks unobfuscated typed data) | ❌ | 🧪 |
-| HTML-only paste, pasted/dropped text files | ❌ | 🧪 |
-| Warning while typing | ❌ | 🧪 |
-| Drag and drop | ❌ | 🧪 |
+| Inline mode (opt-in) | ❌ | 🧪 |
 | Clipboard-read permission guard | ❌ | 🧪 |
-| Workbench | ❌ | 🧪 |
+| **Memory, panel and workbench** | | |
 | Memory: context menu and popup | ❌ | 🧪 |
 | Memory: partial match | ❌ | 🧪 |
 | In-page panel: suggestions, Hide, Never hide | ❌ | 🧪 |
+| Workbench | ❌ | 🧪 |
+| **Security** | | |
+| The page cannot read revealed values (DOM, `window.find`, recorders) | ❌ | 🧪 |
+| Placeholders only resolve on the site that created them | ❌ | 🧪 |
+| The page cannot trigger a copy of originals without a user gesture | ❌ | 🧪 |
+| No trace on pages where Trellis has not acted | ❌ | 🧪 |
+| Orphaned copies stop after the extension is reloaded | ❌ | 🧪 |
+| Default rules resist hostile input (no catastrophic backtracking) | ➖ | 🧪 |
+| Imported settings files are sanitized | ➖ | 🧪 |
+
+➖ not something you can check by hand in the chat. The security rows are attacks run from the page's point of
+view in `test/e2e/security.spec.js`, `gesture.spec.js`, `stealth.spec.js` and `egress.spec.js`, including the two
+issues (T1, T2) found in an external security review.
 
 ## Install
 
