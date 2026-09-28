@@ -1,16 +1,20 @@
 {
   "name": "trellis",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "private": true,
   "description": "Chrome extension that keeps sensitive data out of AI chatbots",
   "license": "MIT",
   "scripts": {
     "test": "node --test test/*.test.js",
-    "check": "node scripts/check-encoding.js && node -e \"JSON.parse(require('fs').readFileSync('manifest.json','utf8'))\" && for f in *.js test/*.js test/e2e/*.js scripts/*.js; do node --check \"$f\" || exit 1; done",
+    "check": "node scripts/check-encoding.js && node -e \"JSON.parse(require('fs').readFileSync('manifest.json','utf8'))\" && for f in *.js test/*.js test/e2e/*.js test/firefox/*.js scripts/*.js; do node --check \"$f\" || exit 1; done",
     "test:e2e": "playwright test",
-    "package": "npm run check && npm test && node scripts/package.js"
+    "package": "npm run check && npm test && node scripts/package.js",
+    "package:firefox": "npm run check && npm test && node scripts/package.js --target=firefox && web-ext lint --source-dir dist/firefox",
+    "test:firefox": "node --test --test-concurrency=1 test/firefox/*.test.js"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "^1.63.0",
+    "selenium-webdriver": "^4.49.0",
+    "web-ext": "^10.7.0"
   }
 }

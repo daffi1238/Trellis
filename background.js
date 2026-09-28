@@ -1,4 +1,6 @@
-importScripts('defaults.js', 'obfuscator.js');
+// Chrome runs this file as a service worker and loads the shared scripts here; Firefox runs it as an event page
+// with the shared scripts listed before it in the manifest.
+if (typeof importScripts === 'function') importScripts('defaults.js', 'obfuscator.js');
 
 const SCRIPT_ID = 'trellis-content';
 const SCRIPT_FILES = ['defaults.js', 'obfuscator.js', 'content.js'];
@@ -111,10 +113,40 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 // ---------- Placeholder <-> original mapping ----------
-// Content scripts cannot use storage.session by default; open it explicitly.
-const accessReady = chrome.storage.session
-  .setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' })
-  .catch(() => {});
+// Mappings live in storage.session, which only extension pages and this worker can read. Content scripts never
+// access it directly (it is not available to them in every browser): they ask here for their own site's entries,
+// and are told when those change. A tab therefore only ever receives the mappings of its own site.
+
+async function vaultFor(site) {
+  return trellisVaultEntries(await chrome.storage.session.get(null), site);
+}
+
+// Tells the content scripts of the configured sites that mappings changed, so they reload theirs.
+async function broadcastVaultChanged() {
+  const { domains } = await trellisGetSettings();
+  const tabs = await chrome.tabs.query({ url: domains.map(trellisDomainToPattern) }).catch(() => []);
+  for (const tab of tabs) chrome.tabs.sendMessage(tab.id, { type: 'trellis:vault-changed' }).catch(() => {});
+}
+
+// In-page panel: the panel (an extension page) and the content script of its tab talk through here.
+// State from the content script is stored for the panel; commands written by the panel are forwarded to the tab.
+const PANEL_PREFIX = 'trellis:panel:';
+const CMD_PREFIX = 'trellis:cmd:';
+const PANEL_TAB_PREFIX = 'trellis:panel-tab:';
+
+chrome.storage.onChanged.addListener(async (changes, area) => {
+  if (area !== 'session') return;
+  const keys = Object.keys(changes);
+  if (keys.some((k) => trellisParseVaultKey(k))) broadcastVaultChanged();
+  for (const key of keys.filter((k) => k.startsWith(CMD_PREFIX) && changes[k].newValue)) {
+    const panelId = key.slice(CMD_PREFIX.length);
+    const where = (await chrome.storage.session.get(PANEL_TAB_PREFIX + panelId))[PANEL_TAB_PREFIX + panelId];
+    if (where) {
+      chrome.tabs.sendMessage(where.tabId, { type: 'trellis:panel-cmd', panelId, cmd: changes[key].newValue }, { frameId: where.frameId })
+        .catch(() => {});
+    }
+  }
+});
 
 // Assignments are serialized here so two tabs never give the same placeholder to different values.
 let queue = Promise.resolve();
@@ -166,8 +198,23 @@ function validItems(items) {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return;
-  if (msg?.type === 'trellis:ready') {
-    accessReady.then(() => sendResponse(true));
+  if (msg?.type === 'trellis:vault') {
+    senderSite(sender).then(async (site) => sendResponse({ entries: site ? await vaultFor(site) : [] }), () => sendResponse({ entries: [] }));
+    return true;
+  }
+  if (msg?.type === 'trellis:panel-state' || msg?.type === 'trellis:panel-close') {
+    (async () => {
+      const id = String(msg.panelId || '');
+      if (!/^x\d{1,12}$/.test(id) || !sender.tab || !(await senderSite(sender))) return;
+      if (msg.type === 'trellis:panel-close') {
+        await chrome.storage.session.remove([PANEL_PREFIX + id, CMD_PREFIX + id, PANEL_TAB_PREFIX + id]);
+        return;
+      }
+      await chrome.storage.session.set({
+        [PANEL_PREFIX + id]: msg.state,
+        [PANEL_TAB_PREFIX + id]: { tabId: sender.tab.id, frameId: sender.frameId || 0 }
+      });
+    })().then(() => sendResponse(true), () => sendResponse(false));
     return true;
   }
   if (msg?.type === 'trellis:tokenize') {

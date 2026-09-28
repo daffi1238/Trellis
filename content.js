@@ -50,22 +50,14 @@
         else scheduleSuggestions(100);
       }
       if (changes.showPanel || changes.enabled) scheduleSuggestions(0);
-    } else if (area === 'session') {
-      if (changes[CMD_KEY]?.newValue) handlePanelCommand(changes[CMD_KEY].newValue);
-      const mine = Object.keys(changes)
-        .map((k) => ({ k, parsed: globalThis.trellisParseVaultKey(k) }))
-        .filter(({ parsed }) => parsed && parsed.site === currentSite());
-      if (!mine.length) return;
-      if (mine.some(({ k }) => changes[k].newValue === undefined)) {
-        loadVault(); // mappings were deleted: rebuild
-        return;
-      }
-      for (const { k, parsed } of mine) {
-        const { label, value } = changes[k].newValue;
-        Engine.addEntry(session, parsed.token, label, value);
-      }
-      vaultChanged();
     }
+  });
+
+  // Messages from the background: mappings of this site changed, or a command from the in-page panel.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (dead) return;
+    if (msg?.type === 'trellis:vault-changed') loadVault();
+    else if (msg?.type === 'trellis:panel-cmd' && msg.panelId === panelId) handlePanelCommand(msg.cmd);
   });
 
   function siteActive() {
@@ -76,15 +68,14 @@
     return globalThis.trellisSiteFor(location.hostname, settings.domains);
   }
 
-  // Only this site's mappings are loaded: other sites' placeholders never resolve here.
+  // Only this site's mappings are loaded (the background derives the site from this tab): other sites'
+  // placeholders never resolve here.
   async function loadVault() {
     try {
       await settingsReady;
-      await chrome.runtime.sendMessage({ type: 'trellis:ready' }); // wakes the background worker, which opens storage.session
+      const res = await chrome.runtime.sendMessage({ type: 'trellis:vault' });
       const fresh = Engine.createSession();
-      for (const e of globalThis.trellisVaultEntries(await chrome.storage.session.get(null), currentSite())) {
-        Engine.addEntry(fresh, e.token, e.label, e.value);
-      }
+      for (const e of res?.entries || []) Engine.addEntry(fresh, e.token, e.label, e.value);
       session = fresh;
       vaultChanged();
     } catch (e) {
@@ -209,14 +200,14 @@
 
     // 1) Re-dispatch a synthetic paste carrying the obfuscated text: editors
     //    (ProseMirror on ChatGPT/Claude, Quill on Gemini, Lexical...) handle it as a normal paste.
+    // Some browsers (Firefox) ignore the clipboardData of a script-created paste event: insert as an edit instead.
+    if (!SYNTHETIC_PASTE) {
+      insertAsEdit(el, text);
+      return;
+    }
     const data = new DataTransfer();
     data.setData('text/plain', text);
-    const synthetic = new ClipboardEvent('paste', {
-      clipboardData: data,
-      bubbles: true,
-      cancelable: true,
-      composed: true
-    });
+    const synthetic = new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true, composed: true });
     reinjecting = true;
     try {
       el.dispatchEvent(synthetic);
@@ -226,17 +217,30 @@
 
     // 2) If nobody handled it (e.g. a plain <textarea>), insert with execCommand, which fires
     //    'input' (React-friendly) and keeps undo working.
-    if (!synthetic.defaultPrevented) {
-      const active = document.activeElement || el;
-      active.focus?.();
-      if (!document.execCommand('insertText', false, text) && 'value' in active) {
-        const start = active.selectionStart ?? active.value.length;
-        const end = active.selectionEnd ?? active.value.length;
-        active.setRangeText(text, start, end, 'end');
-        active.dispatchEvent(new Event('input', { bubbles: true }));
-      }
+    if (!synthetic.defaultPrevented) insertAsEdit(el, text);
+  }
+
+  function insertAsEdit(el, text) {
+    const active = document.activeElement || el;
+    active.focus?.();
+    if (!document.execCommand('insertText', false, text) && 'value' in active) {
+      const start = active.selectionStart ?? active.value.length;
+      const end = active.selectionEnd ?? active.value.length;
+      active.setRangeText(text, start, end, 'end');
+      active.dispatchEvent(new Event('input', { bubbles: true }));
     }
   }
+
+  // Whether a script-created paste event keeps its clipboardData (Chrome yes, Firefox no).
+  const SYNTHETIC_PASTE = (() => {
+    try {
+      const probe = new DataTransfer();
+      probe.setData('text/plain', 'probe');
+      return new ClipboardEvent('paste', { clipboardData: probe }).clipboardData?.getData('text/plain') === 'probe';
+    } catch (e) {
+      return false;
+    }
+  })();
 
   // ================= Showing original values =================
   // Hover mode (default): the page keeps the placeholders. Known placeholders are highlighted with the
@@ -392,7 +396,7 @@
     const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) if (blockOf(walker.currentNode) === block) nodes.push(walker.currentNode);
     for (const t of nodes) {
-      for (const { range } of marks.get(t) || []) highlight?.delete(range);
+      for (const { range } of marks.get(t) || []) hlDelete(range);
       marks.delete(t);
     }
 
@@ -442,7 +446,7 @@
         if (!marks.has(node)) marks.set(node, []);
         marks.get(node).push(mark);
       }
-      if (withHighlight) highlight.add(range);
+      if (withHighlight) hlAdd(range);
     }
   }
 
@@ -467,43 +471,78 @@
         const r = new Range();
         r.setStart(first.node, from);
         r.setEnd(first.node, from + original.length);
-        highlight.add(r);
+        hlAdd(r);
       }
     }
   }
 
+  // Highlighted ranges are tracked here: iterating the page's Highlight object from a content script is not
+  // possible in every browser (Firefox Xray wrappers), so it is only ever used through add/delete/clear.
   let highlightSheet = null;
+  const highlighted = new Set();
+
+  function hlAdd(range) {
+    highlight.add(range);
+    highlighted.add(range);
+  }
+
+  function hlDelete(range) {
+    highlight?.delete(range);
+    highlighted.delete(range);
+  }
+
+  // adoptedStyleSheets is an observable array edited in place (push/splice). Firefox's Xray wrappers do not let a
+  // content script touch it, so there it goes through the page's own view of the document (wrappedJSObject).
+  // The sheet only holds the highlight colour rule, which the page could read anyway.
+  function pageSheets() {
+    return (document.wrappedJSObject || document).adoptedStyleSheets;
+  }
+
+  function removeSheet(sheet) {
+    const list = pageSheets();
+    for (let i = list.length - 1; i >= 0; i--) if (list[i] === sheet) list.splice(i, 1);
+  }
+
   function dropHighlight() {
     if (!highlight) return;
     highlight.clear();
+    highlighted.clear();
     CSS.highlights.delete(HIGHLIGHT);
-    document.adoptedStyleSheets = document.adoptedStyleSheets.filter((sh) => sh !== highlightSheet);
+    try {
+      removeSheet(highlightSheet);
+    } catch (e) {}
     highlight = null;
   }
 
   function ensureHighlight() {
     if (highlight) return true;
     if (!globalThis.CSS?.highlights || typeof Highlight === 'undefined') return false;
-    highlight = new Highlight();
-    CSS.highlights.set(HIGHLIGHT, highlight);
-    const sheet = (highlightSheet = new CSSStyleSheet());
-    sheet.replaceSync(
-      `::highlight(${HIGHLIGHT}){background-color:rgba(52,211,153,.28);text-decoration:underline dotted rgba(5,150,105,.9);}`
-    );
-    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
-    return true;
+    try {
+      highlight = new Highlight();
+      CSS.highlights.set(HIGHLIGHT, highlight);
+      const sheet = (highlightSheet = new CSSStyleSheet());
+      sheet.replaceSync(
+        `::highlight(${HIGHLIGHT}){background-color:rgba(52,211,153,.28);text-decoration:underline dotted rgba(5,150,105,.9);}`
+      );
+      pageSheets().push(sheet);
+      return true;
+    } catch (e) {
+      // Highlighting is cosmetic: without it, placeholders are still revealed on hover and copied.
+      if (highlight) CSS.highlights.delete(HIGHLIGHT);
+      highlight = null;
+      return false;
+    }
   }
 
   function prune() {
     for (const [node, list] of marks) {
       if (!node.isConnected) {
-        list.forEach(({ range }) => highlight?.delete(range));
+        list.forEach(({ range }) => hlDelete(range));
         marks.delete(node);
       }
     }
-    if (!highlight) return;
-    for (const r of highlight) {
-      if (r.collapsed || !r.startContainer.isConnected) highlight.delete(r);
+    for (const r of highlighted) {
+      if (r.collapsed || !r.startContainer.isConnected) hlDelete(r);
     }
   }
 
@@ -1152,12 +1191,10 @@
   // A small floating button, present only while Trellis has something to show on this page, opens a panel
   // with this site's placeholders, suggestions (things that look sensitive but matched nothing) and a quick
   // "add to memory". The panel is an extension page in an <iframe>: cross-origin, so the page cannot read it,
-  // placed inside a closed shadow root and only created while open. The panel and this script talk through
-  // chrome.storage.session keys, never through the page (no postMessage, no DOM events).
+  // placed inside a closed shadow root and only created while open. The panel and this script talk through the
+  // background worker, never through the page (no postMessage, no DOM events).
 
   const panelId = randomId();
-  const PANEL_KEY = `trellis:panel:${panelId}`;
-  const CMD_KEY = `trellis:cmd:${panelId}`;
   let pill = null;
   let panel = null;
   let suggestions = [];
@@ -1190,7 +1227,8 @@
 
   function publishPanelState() {
     if (!panel) return;
-    chrome.storage.session.set({ [PANEL_KEY]: { site: currentSite(), suggestions, at: Date.now() } }).catch(() => {});
+    chrome.runtime.sendMessage({ type: 'trellis:panel-state', panelId, state: { site: currentSite(), suggestions, at: Date.now() } })
+      .catch(() => {});
   }
 
   function updatePill() {
@@ -1281,7 +1319,7 @@
     if (!panel) return;
     panel.host.remove();
     panel = null;
-    chrome.storage.session.remove([PANEL_KEY, CMD_KEY]).catch(() => {});
+    chrome.runtime.sendMessage({ type: 'trellis:panel-close', panelId }).catch(() => {});
     updatePill();
   }
 

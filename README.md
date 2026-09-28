@@ -66,7 +66,7 @@ You see:       …the LLM's answer; hover a placeholder to see the original, or 
 | Google Chrome (desktop) | ✅ | Tested by hand on claude.ai |
 | Chromium | 🧪 | Runs the end-to-end suite in CI |
 | Microsoft Edge, Brave, Opera, Vivaldi | ❌ | Chromium-based, expected to work |
-| Firefox | ❌ | Not supported yet (Manifest V3 differences) |
+| Firefox 140+ (ESR) | 🧪 | Automated tests on Firefox ESR 140; not tested by hand yet. See [Firefox notes](docs/store/firefox-amo.md) |
 | Safari | ❌ | Not supported |
 
 ### Chat sites
@@ -139,6 +139,10 @@ To install it from source:
 
 To update: `git pull`, then click ↻ on the extension in `chrome://extensions`.
 
+**Firefox (140 or later):** run `npm run package:firefox`, then in `about:debugging` → *This Firefox* →
+*Load Temporary Add-on…* select `dist/firefox/manifest.json` (it stays until Firefox restarts), or run
+`npx web-ext run --source-dir dist/firefox`. See the [Firefox notes](docs/store/firefox-amo.md) for the differences.
+
 Permissions: the configured chat sites (plus any you add), storage, context menu and clipboard write. Trellis
 never asks to read your clipboard.
 
@@ -198,7 +202,8 @@ Trellis treats the chat site itself as untrusted: it is the party your data is h
   keeps the placeholders; the original is drawn on a canvas inside a closed shadow root created by the extension,
   which the site's scripts cannot reach, search (`window.find`) or select.
 - **Placeholders are scoped per site.** A placeholder created on claude.ai can only be revealed or copied on
-  claude.ai. Another site printing `[EMAIL_1]` gets nothing.
+  claude.ai. Another site printing `[EMAIL_1]` gets nothing. Content scripts never read the mapping store
+  directly: the background hands each tab only the mappings of its own site.
 - **Copying requires a real user gesture.** The site's scripts cannot make Trellis put originals on the
   clipboard on their own.
 - **No originals on the clipboard for sites that can read it.** If a site has been granted clipboard-read
@@ -290,7 +295,9 @@ Do not put private names here: use the Memory instead, which never ends up in th
 npm run check      # manifest, encoding and JavaScript syntax
 npm test           # unit tests of the engine (node --test, no dependencies)
 
-npm run package    # checks + unit tests, then builds dist/trellis-<version>.zip for the store
+npm run package    # checks + unit tests, then builds dist/trellis-<version>.zip for the Chrome Web Store
+npm run package:firefox   # same for Firefox: dist/firefox/ and dist/trellis-firefox-<version>.zip, plus web-ext lint
+npm run test:firefox      # Firefox tests (Firefox ESR/Developer Edition/Nightly + Selenium)
 
 npm ci                                  # once: installs Playwright
 npx playwright install chromium         # once: downloads Chromium
@@ -303,7 +310,7 @@ ChatGPT (textarea inside a form). No real chat site is contacted. They check wha
 browser: pasting, the check before sending, local restore, copying, memory, the settings page and the popup.
 
 Everything runs automatically on every push and pull request (GitHub Actions): unit tests on Node 20 and 22,
-and the end-to-end suite on Chromium. When the end-to-end job fails, its report and traces are attached to
+the end-to-end suite on Chromium, and the Firefox build (web-ext lint + Firefox tests on Firefox ESR). When the end-to-end job fails, its report and traces are attached to
 the run (`npx playwright show-trace <trace.zip>`).
 
 | File | Purpose |
@@ -321,9 +328,9 @@ the run (`npx playwright show-trace <trace.zip>`).
 | `welcome.html` | Shown on install: what Trellis reads and that nothing leaves the browser |
 | `icons/` | Extension icons (`icon512.png` is the source for store graphics) |
 | `scripts/` | `package.js` (store zip) and `check-encoding.js` |
-| `docs/store/` | Chrome Web Store listing texts, permission justifications, screenshots and promo tile |
+| `docs/store/` | Store listing texts and graphics: Chrome Web Store and Firefox Add-ons (AMO) |
 | `wordlists/` | Generic word lists |
-| `test/` | Unit tests (`*.test.js`) and end-to-end tests (`e2e/`) |
+| `test/` | Unit tests (`*.test.js`), end-to-end tests on Chromium (`e2e/`) and on Firefox (`firefox/`) |
 
 Contributions are welcome, especially regexes for other countries' ID and phone formats, and word-list
 improvements.

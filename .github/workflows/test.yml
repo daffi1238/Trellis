@@ -59,3 +59,26 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
+
+  firefox:
+    name: Firefox (ESR)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint the Firefox build
+        run: node scripts/package.js --target=firefox && npx web-ext lint --source-dir dist/firefox
+
+      - name: Run Firefox tests
+        # Selenium Manager downloads Firefox ESR and geckodriver (release builds refuse unsigned add-ons).
+        env:
+          FIREFOX_VERSION: esr
+        run: npm run test:firefox
