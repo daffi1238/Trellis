@@ -88,44 +88,50 @@ You see:       …the LLM's answer; hover a placeholder to see the original, or 
 | meta.ai | ❌ | |
 | huggingface.co (HuggingChat) | ❌ | |
 
-### Features on claude.ai (Chrome)
+### Features
 
-| Feature | Real site | Automated tests |
-|---|:---:|:---:|
-| **Obfuscating** | | |
-| Obfuscate on paste | ✅ | 🧪 |
-| Long pastes (attachment card) | ✅ | 🧪 |
-| HTML-only paste, pasted/dropped text files | ❌ | 🧪 |
-| Drag and drop | ❌ | 🧪 |
-| Check before sending (Enter / Send button) | ❌ | 🧪 |
-| Non-standard Send controls (e.g. `<div role="button">`) | ❌ | 🧪 |
-| Obfuscate typed text on a pause | ❌ | 🧪 |
-| Warning while typing | ❌ | 🧪 |
-| Network backstop (blocks unobfuscated typed data) | ❌ | 🧪 |
-| **Showing and copying originals** | | |
-| Placeholders highlighted and revealed on hover | ✅ | 🧪 |
-| Placeholders inside code blocks | ✅ | 🧪 |
-| Copy button returns the original values | ✅ | 🧪 |
-| "Never" mode (show placeholders only) | ❌ | 🧪 |
-| Inline mode (opt-in) | ❌ | 🧪 |
-| Clipboard-read permission guard | ❌ | 🧪 |
-| **Memory, panel and workbench** | | |
-| Memory: context menu and popup | ❌ | 🧪 |
-| Memory: partial match | ❌ | 🧪 |
-| In-page panel: suggestions, Hide, Never hide | ❌ | 🧪 |
-| Workbench | ❌ | 🧪 |
-| **Security** | | |
-| The page cannot read revealed values (DOM, `window.find`, recorders) | ❌ | 🧪 |
-| Placeholders only resolve on the site that created them | ❌ | 🧪 |
-| The page cannot trigger a copy of originals without a user gesture | ❌ | 🧪 |
-| No trace on pages where Trellis has not acted | ❌ | 🧪 |
-| Orphaned copies stop after the extension is reloaded | ❌ | 🧪 |
-| Default rules resist hostile input (no catastrophic backtracking) | ➖ | 🧪 |
-| Imported settings files are sanitized | ➖ | 🧪 |
+| Feature | Chrome · by hand on claude.ai | Chromium · automated | Firefox 140 · automated |
+|---|:---:|:---:|:---:|
+| **Obfuscating** | | | |
+| Obfuscate on paste | ✅ | 🧪 | 🧪 |
+| Long pastes (attachment card) | ✅ | 🧪 | ⚠️ |
+| HTML-only paste, pasted/dropped text files | ❌ | 🧪 | 🧪 |
+| Drag and drop | ❌ | 🧪 | ❌ |
+| Check before sending (Enter / Send button) | ❌ | 🧪 | 🧪 |
+| Non-standard Send controls (e.g. `<div role="button">`) | ❌ | 🧪 | 🧪 |
+| Obfuscate typed text on a pause | ❌ | 🧪 | 🧪 |
+| Warning while typing | ❌ | 🧪 | ❌ |
+| Network backstop (blocks unobfuscated typed data) | ❌ | 🧪 | 🧪 |
+| **Showing and copying originals** | | | |
+| Placeholders highlighted in replies | ✅ | 🧪 | 🧪 |
+| Original revealed on hover | ✅ | 🧪 | ❌ |
+| Placeholders inside code blocks | ✅ | 🧪 | ❌ |
+| Copy button returns the original values | ✅ | 🧪 | 🧪 |
+| "Never" mode (show placeholders only) | ❌ | 🧪 | ❌ |
+| Inline mode (opt-in) | ❌ | 🧪 | ❌ |
+| Clipboard-read permission guard | ❌ | 🧪 | ➖ |
+| **Memory, panel and workbench** | | | |
+| Memory: context menu and popup | ❌ | 🧪 | ❌ |
+| Memory: partial match | ❌ | 🧪 | ❌ |
+| In-page panel: suggestions, Hide, Never hide | ❌ | 🧪 | ❌ |
+| Workbench | ❌ | 🧪 | ❌ |
+| **Security** | | | |
+| The page cannot read revealed values (DOM, `window.find`, recorders) | ❌ | 🧪 | ❌ |
+| Placeholders only resolve on the site that created them | ❌ | 🧪 | 🧪 |
+| The page cannot trigger a copy of originals without a user gesture | ❌ | 🧪 | 🧪 |
+| No trace on pages where Trellis has not acted | ❌ | 🧪 | ❌ |
+| Orphaned copies stop after the extension is reloaded | ❌ | 🧪 | ❌ |
+| Default rules resist hostile input; imported settings are sanitized | ➖ | 🧪 | 🧪 |
 
-➖ not something you can check by hand in the chat. The security rows are attacks run from the page's point of
+⚠️ works differently: Firefox ignores script-created paste events, so long pastes are inserted as text in the message
+box instead of becoming an attachment card (still obfuscated).
+➖ not applicable: the last row is covered by the unit tests of the engine, which do not depend on the browser, and
+Firefox has no clipboard-read permission for sites (it asks on each paste).
+
+Nothing has been tested by hand on Firefox yet. The Chromium security rows are attacks run from the page's point of
 view in `test/e2e/security.spec.js`, `gesture.spec.js`, `stealth.spec.js` and `egress.spec.js`, including the two
-issues (T1, T2) found in an external security review.
+issues (T1, T2) found in an external security review. On Firefox, the hover tooltip and the panel live in closed
+shadow roots that WebDriver cannot inspect, so they need testing by hand.
 
 ## Install
 
