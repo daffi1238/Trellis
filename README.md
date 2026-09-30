@@ -315,6 +315,9 @@ behave like Claude (rich-text editor, attachment cards for long pastes, streamed
 ChatGPT (textarea inside a form). No real chat site is contacted. They check what would actually leave the
 browser: pasting, the check before sending, local restore, copying, memory, the settings page and the popup.
 
+Releases to the Chrome Web Store and Firefox Add-ons are automated: push a `vX.Y.Z` tag (see
+[docs/store/RELEASING.md](docs/store/RELEASING.md)).
+
 Everything runs automatically on every push and pull request (GitHub Actions): unit tests on Node 20 and 22,
 the end-to-end suite on Chromium, and the Firefox build (web-ext lint + Firefox tests on Firefox ESR). When the end-to-end job fails, its report and traces are attached to
 the run (`npx playwright show-trace <trace.zip>`).
@@ -333,7 +336,7 @@ the run (`npx playwright show-trace <trace.zip>`).
 | `workbench.*` | Workbench page: obfuscate and reveal inside the extension |
 | `welcome.html` | Shown on install: what Trellis reads and that nothing leaves the browser |
 | `icons/` | Extension icons (`icon512.png` is the source for store graphics) |
-| `scripts/` | `package.js` (store zip) and `check-encoding.js` |
+| `scripts/` | `package.js` (store packages), `publish-chrome.js` (Chrome Web Store API), `bump-version.js`, `check-encoding.js` |
 | `docs/store/` | Store listing texts and graphics: Chrome Web Store and Firefox Add-ons (AMO) |
 | `wordlists/` | Generic word lists |
 | `test/` | Unit tests (`*.test.js`), end-to-end tests on Chromium (`e2e/`) and on Firefox (`firefox/`) |

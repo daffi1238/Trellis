@@ -1,0 +1,15 @@
+{
+  "categories": { "firefox": ["privacy-security"] },
+  "summary": {
+    "en-US": "Keeps sensitive data out of AI chatbots: obfuscates on paste and send, and shows the originals only to you."
+  },
+  "description": {
+    "en-US": "Trellis keeps personal and confidential data out of AI chatbots such as ChatGPT, Claude, Gemini, DeepSeek, Mistral, Perplexity and Copilot.\n\nWhen you paste, drop or type text on a chat site, Trellis replaces sensitive data with placeholders before the site receives it, for example \"jane.doe@acme.com\" becomes \"[EMAIL_1]\". The chatbot only ever sees the placeholders. When it answers, you see the original values on hover, and copying the reply gives you the real values back, only on your screen.\n\nIt detects emails, phone numbers, IBANs, card numbers, IP addresses, API keys and passwords, names and surnames in many languages, and your own keywords (people, companies, clients, projects) stored in your memory.\n\nEverything happens in your browser: no server, no account, no analytics, no data sent anywhere. Open source: https://github.com/daffi1238/Trellis"
+  },
+  "homepage": { "en-US": "https://github.com/daffi1238/Trellis" },
+  "support_url": { "en-US": "https://github.com/daffi1238/Trellis/issues" },
+  "version": {
+    "license": "MIT",
+    "approval_notes": "Privacy tool: replaces personal data with placeholders before it reaches AI chat sites; sends nothing anywhere itself. To test: on https://claude.ai paste \"Contact Jane Doe at jane.doe@example.com, card 4111 1111 1111 1111\"; the box shows [NAME_1] [SURNAME_1], [EMAIL_1] and [CARD_1]. content.js uses document.wrappedJSObject only to add the highlight colour rule to adoptedStyleSheets (Xray wrappers block it otherwise). clipboard-main.js and egress-main.js run in the page world and only pass text the page already has to the content script, receiving a yes/no answer. More: docs/store/firefox-amo.md in the repository."
+  }
+}

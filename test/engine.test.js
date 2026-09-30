@@ -249,3 +249,36 @@ test('the store package contains everything the extension references', () => {
   }
   assert.ok(!listing.some((f) => f.startsWith('test/') || f.startsWith('node_modules/') || f.startsWith('docs/')));
 });
+
+test('Chrome Web Store publishing: the service account assertion is a valid RS256 JWT', () => {
+  const crypto = require('node:crypto');
+  const { buildAssertion } = require('../scripts/publish-chrome.js');
+  const { privateKey, publicKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const key = { client_email: 'publisher@project.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) };
+  const jwt = buildAssertion(key, 1000);
+  const [header, claims, signature] = jwt.split('.');
+  assert.deepEqual(JSON.parse(Buffer.from(header, 'base64url')), { alg: 'RS256', typ: 'JWT' });
+  assert.deepEqual(JSON.parse(Buffer.from(claims, 'base64url')), {
+    iss: key.client_email,
+    scope: 'https://www.googleapis.com/auth/chromewebstore',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: 1000,
+    exp: 4600
+  });
+  assert.ok(crypto.verify('RSA-SHA256', Buffer.from(`${header}.${claims}`), publicKey, Buffer.from(signature, 'base64url')));
+});
+
+test('Chrome Web Store publishing refuses to run without its configuration', () => {
+  const { spawnSync } = require('node:child_process');
+  const r = spawnSync('node', [path.join(__dirname, '..', 'scripts', 'publish-chrome.js'), path.join(__dirname, '..', 'manifest.json')],
+    { env: { PATH: process.env.PATH }, encoding: 'utf8' });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /missing environment variable CWS_SERVICE_ACCOUNT_KEY/);
+});
+
+test('AMO metadata has what the first listed submission requires', () => {
+  const meta = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'docs', 'store', 'amo-metadata.json'), 'utf8'));
+  assert.deepEqual(meta.categories, { firefox: ['privacy-security'] });
+  assert.ok(meta.summary['en-US'].length <= 250);
+  assert.equal(meta.version.license, 'MIT');
+});

@@ -1,0 +1,108 @@
+name: Release
+
+# Publishes Trellis to the Chrome Web Store and to Firefox Add-ons (AMO).
+#   - Push a tag vX.Y.Z matching the version in manifest.json (node scripts/bump-version.js X.Y.Z), or
+#   - run it by hand from the Actions tab, choosing the stores.
+# All tests run first. A store is skipped until it is configured (see docs/store/RELEASING.md).
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      chrome:
+        description: Publish to the Chrome Web Store
+        type: boolean
+        default: true
+      firefox:
+        description: Publish to Firefox Add-ons (AMO)
+        type: boolean
+        default: true
+
+permissions:
+  contents: write # GitHub Release with the packages
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    uses: ./.github/workflows/test.yml
+
+  version:
+    name: Check version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: read
+        run: |
+          version=$(node -p "require('./manifest.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ] && [ "${GITHUB_REF_NAME}" != "v$version" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match manifest.json version $version"
+            exit 1
+          fi
+
+  chrome:
+    name: Chrome Web Store
+    needs: [tests, version]
+    if: vars.CWS_EXTENSION_ID != '' && (github.event_name == 'push' || inputs.chrome)
+    runs-on: ubuntu-latest
+    environment: stores # add required reviewers here to approve each release by hand
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/package.js
+      - name: Upload and submit for review
+        env:
+          CWS_SERVICE_ACCOUNT_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+        run: node scripts/publish-chrome.js "dist/trellis-${{ needs.version.outputs.version }}.zip"
+
+  firefox:
+    name: Firefox Add-ons
+    needs: [tests, version]
+    if: vars.AMO_PUBLISH == 'true' && (github.event_name == 'push' || inputs.firefox)
+    runs-on: ubuntu-latest
+    environment: stores
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/package.js --target=firefox && npx web-ext lint --source-dir dist/firefox
+      - name: Submit to AMO (listed)
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        # --approval-timeout 0: submit and return; Mozilla reviews and signs it afterwards.
+        run: >
+          npx web-ext sign --source-dir dist/firefox --channel listed
+          --amo-metadata docs/store/amo-metadata.json --approval-timeout 0 --artifacts-dir dist/web-ext
+
+  github-release:
+    name: GitHub Release
+    needs: [tests, version]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/package.js && node scripts/package.js --target=firefox
+      - name: Create the release with both packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${GITHUB_REF_NAME}" --title "Trellis ${{ needs.version.outputs.version }}" --generate-notes
+          "dist/trellis-${{ needs.version.outputs.version }}.zip#Chrome package"
+          "dist/trellis-firefox-${{ needs.version.outputs.version }}.zip#Firefox package"
