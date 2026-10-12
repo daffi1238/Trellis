@@ -239,6 +239,72 @@ test('outdated default patterns are upgraded, edited ones are kept; imported rul
   assert.equal(globalThis.trellisSanitizeRule({ pattern: 1 }), null);
 });
 
+test('validators: card, IBAN, Spanish ID, JWT and international phone checksums', () => {
+  const ok = (name, value) => E.validate(name, value);
+  assert.ok(ok('luhn', '4111 1111 1111 1111') && ok('luhn', '3782 822463 10005'));
+  assert.ok(!ok('luhn', '1234 5678 9012 3456'));
+  assert.ok(ok('iban', 'ES91 2100 0418 4502 0005 1332') && ok('iban', 'GB82WEST12345698765432'));
+  assert.ok(!ok('iban', 'ES91 2100 0418 4502 0005 1333'));
+  assert.ok(ok('dni-es', '12345678Z') && ok('dni-es', 'X1234567L') && ok('dni-es', '12345678-z'));
+  assert.ok(!ok('dni-es', '12345678A'));
+  assert.ok(ok('jwt', 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.x') && !ok('jwt', 'eyJmb28iOjF9.eyJ4IjoxfQ.x'));
+  assert.ok(ok('phone-intl', '+1 415 555 0100') && !ok('phone-intl', '+44 20'));
+  assert.ok(ok('unknown-validator', 'anything'), 'an unknown validator does not drop matches');
+  // Matches failing their validator are not obfuscated
+  assert.equal(run('order 1234 5678 9012 3456, IBAN ES91 2100 0418 4502 0005 1333, ID 12345678A'),
+    'order 1234 5678 9012 3456, IBAN ES91 2100 0418 4502 0005 1333, ID 12345678A');
+  assert.equal(run('Amex 3782 822463 10005'), 'Amex [CARD_1]');
+});
+
+test('API key formats from many providers; no false positives on hashes and ids', () => {
+  // Built at run time so no token-shaped literal is in the repository.
+  const r = (n, set = 'abcdefghijklmnopqrstuvwxyz0123456789') => Array.from({ length: n }, (_, i) => set[(i * 7 + 3) % set.length]).join('');
+  const hex = (n) => r(n, '0123456789abcdef');
+  const tokens = [
+    'sk' + '_live_' + r(24), 'glpat' + '-' + r(20), 'npm' + '_' + r(36), 'hf' + '_' + r(34, 'abcdefghijklmnopqrstuvwxyzABCDEFGH'),
+    'xapp' + '-1-' + r(20).toUpperCase(), 'SG' + '.' + r(22) + '.' + r(43), 'SK' + hex(32), 'shpat' + '_' + hex(32),
+    'dop' + '_v1_' + hex(64), '123456789' + ':AA' + r(33), 'hvs' + '.' + r(95), 'xox' + 'b-' + r(24), 'gh' + 'p_' + r(36)
+  ];
+  for (const t of tokens) assert.equal(run(`key ${t} end`), 'key [API_KEY_1] end', t.slice(0, 6));
+  for (const t of ['commit 3f786850e387550fdab836ed7e6dc881de23001b', 'id 550e8400-e29b-41d4-a716-446655440000', 'skip_live_test', 'the npm_config value']) {
+    assert.equal(run(t), t);
+  }
+});
+
+test('URL passwords, Authorization headers, webhooks and international phones', () => {
+  assert.equal(run('postgres://app:' + 'S3cr3tPass@db.internal:5432/x'), 'postgres://app:[PASSWORD_1]@db.internal:5432/x');
+  assert.equal(run('https://user@host.example.com/x'), 'https://user@host.example.com/x');
+  assert.equal(run('mailto:jane.doe@example.com'), 'mailto:[EMAIL_1]');
+  assert.equal(run('Authorization: Bearer ' + 'abcDEF123456789xyz'), 'Authorization: Bearer [TOKEN_1]');
+  assert.equal(run('curl -H "authorization: basic ' + 'dXNlcjpwYXNzd29yZA=="'), 'curl -H "authorization: basic [TOKEN_1]"');
+  assert.equal(run('hook https://hooks.' + 'slack.com/services/T0000/B0000/' + 'x'.repeat(24)), 'hook [WEBHOOK_1]');
+  assert.equal(run('call +44 20 7946 0958 or +34 612 345 678'), 'call [PHONE_1] or [PHONE_2]');
+  for (const t of ['v+1.2.3', 'UTC+0100', '+44 20', 'a+b=c']) assert.equal(run(t), t);
+});
+
+test('stored rules are upgraded: new defaults added unless deleted, validators added, outdated patterns replaced', () => {
+  const D = globalThis.TRELLIS_DEFAULTS.rules;
+  const stored = [
+    { id: 'card', name: 'Card', type: 'regex', pattern: globalThis.TRELLIS_OUTDATED_PATTERNS.card[0], flags: 'g', enabled: false },
+    { id: 'iban', name: 'IBAN', type: 'regex', pattern: 'my own', flags: 'g', enabled: true },
+    { id: 'mine', name: 'Mine', type: 'keyword', pattern: 'x', enabled: true }
+  ];
+  const rules = globalThis.trellisMergeSettings({ rules: stored, dismissedRules: ['ipv4', 'webhook'] }).rules;
+  const byId = Object.fromEntries(rules.map((x) => [x.id, x]));
+  assert.equal(byId.card.pattern, D.find((x) => x.id === 'card').pattern);
+  assert.equal(byId.card.enabled, false, 'user choices are kept');
+  assert.equal(byId.card.validate, 'luhn');
+  assert.equal(byId.iban.pattern, 'my own', 'edited patterns are kept');
+  assert.equal(byId.iban.validate, 'iban');
+  assert.ok(byId['url-password'] && byId['phone-intl'] && byId['auth-header']);
+  assert.equal(byId.ipv4, undefined);
+  assert.equal(byId.webhook, undefined);
+  assert.deepEqual(rules.slice(0, 3).map((x) => x.id), ['card', 'iban', 'mine'], 'stored order first');
+  const kept = globalThis.trellisSanitizeRule({ pattern: 'a', validate: 'luhn' });
+  assert.equal(kept.validate, 'luhn');
+  assert.equal(globalThis.trellisSanitizeRule({ pattern: 'a', validate: 'eval' }).validate, undefined);
+});
+
 test('the store package contains everything the extension references', () => {
   const { execFileSync } = require('node:child_process');
   const out = execFileSync('node', [path.join(__dirname, '..', 'scripts', 'package.js')], { encoding: 'utf8' });

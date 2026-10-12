@@ -13,7 +13,10 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'u
 const files = [
   ...fs.readdirSync(root).filter((f) => /\.(js|html|css)$/.test(f) && f !== 'playwright.config.js'),
   ...fs.readdirSync(path.join(root, 'icons')).filter((f) => /^icon(16|32|48|128)\.png$/.test(f)).map((f) => `icons/${f}`),
-  ...fs.readdirSync(path.join(root, 'wordlists')).filter((f) => f.endsWith('.txt')).map((f) => `wordlists/${f}`)
+  ...fs.readdirSync(path.join(root, 'wordlists')).filter((f) => f.endsWith('.txt')).map((f) => `wordlists/${f}`),
+  // Licence notices for third-party material in the code (the MIT licence asks for them in every copy).
+  'LICENSE',
+  'THIRD_PARTY_NOTICES.md'
 ];
 
 // Every script, page and asset referenced by the manifest or the extension pages must be packaged.

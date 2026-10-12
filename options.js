@@ -7,7 +7,7 @@ let dirty = false;
 // Keys saved with the Save button (domains are saved immediately because they involve permissions).
 const SAVED_KEYS = [
   'enabled', 'mode', 'maskText', 'showToast', 'restoreMode', 'highlightRestored', 'restoreOnCopy',
-  'restoreExclude', 'presend', 'typingWarning', 'autoObfuscateTyped', 'egressGuard', 'showPanel', 'rules', 'wordlists', 'exceptionsExtra', 'allowlist'
+  'restoreExclude', 'presend', 'typingWarning', 'autoObfuscateTyped', 'egressGuard', 'showPanel', 'rules', 'dismissedRules', 'wordlists', 'exceptionsExtra', 'allowlist'
 ];
 // Memory and domains are saved immediately, but are included in export/import.
 const EXPORT_KEYS = [...SAVED_KEYS, 'domains', 'memory', 'memoryCategories'];
@@ -156,6 +156,8 @@ function ruleRow(rule, index) {
 
   const del = el('button', { className: 'danger', textContent: '✕', title: 'Delete rule' });
   del.addEventListener('click', () => {
+    // A deleted default rule is remembered, so a later version does not add it back.
+    if (TRELLIS_DEFAULTS.rules.some((d) => d.id === rule.id)) state.dismissedRules = [...new Set([...(state.dismissedRules || []), rule.id])];
     state.rules.splice(index, 1);
     renderRules();
     markDirty();
@@ -193,6 +195,7 @@ $('#addRegex').addEventListener('click', () => {
 });
 $('#resetRules').addEventListener('click', () => {
   state.rules = structuredClone(TRELLIS_DEFAULTS.rules);
+  state.dismissedRules = [];
   renderRules();
   markDirty();
 });

@@ -47,8 +47,15 @@ You see:       …the LLM's answer; hover a placeholder to see the original, or 
   `HOOLI_DC` into `[CORP_1]_DC`. Enable *Partial match* on an entry to also catch it inside other words
   (`HooliDC` → `[CORP_1]DC`). Add entries in Settings, from the toolbar popup, or by selecting text on any
   site → right-click → *Add to Trellis memory*.
-- **Rules**: built-in regexes for emails, phone numbers, IBANs, cards, IPs, API keys, JWTs, private keys
-  and `password=`-style secrets, plus your own regexes and keyword rules.
+- **Rules**: built-in regexes for emails, phone numbers (Spanish and international), IBANs, cards, Spanish IDs,
+  IPs, JWTs, private keys, `password=`-style secrets, passwords in URLs (`postgres://user:password@host`),
+  `Authorization` headers, webhook URLs (Slack, Discord, Teams) and API keys of about 50 providers (Anthropic, OpenAI,
+  AWS, Google, GitHub, GitLab, Slack, Stripe, Twilio, SendGrid, npm, PyPI, Hugging Face, DigitalOcean, Vault…), plus
+  your own regexes and keyword rules. Cards, IBANs, Spanish IDs and JWTs are checked with their checksum or structure
+  (Luhn, ISO 13616 mod-97, DNI/NIE letter, JWT header), so an order number is not taken for a card. The API key
+  formats are adapted from [gitleaks](https://github.com/gitleaks/gitleaks) (MIT, see
+  [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)). New built-in rules are added to your settings on update,
+  except those you deleted.
 - **Generic word lists**: ~1,500 first names and ~1,150 surnames in many languages, with an exception list
   for words like *Claude*, *Ruby* or *Will*.
 
