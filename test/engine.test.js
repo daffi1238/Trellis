@@ -291,6 +291,18 @@ test('HTTP traffic: Cookie and Set-Cookie values, and user names when that rule 
   assert.equal(run('username=jdoe&next=1\nuser: admin\nn = user_count(3)', { rules }), 'username=[USER_1]&next=1\nuser: [USER_2]\nn = user_count(3)');
 });
 
+test('hashed word lists: terms are matched by fingerprint, never stored', () => {
+  const crypto = require('node:crypto');
+  const key = crypto.randomBytes(32);
+  const hash = (k) => crypto.createHmac('sha256', key).update(k).digest('hex');
+  const terms = ['Northwind Traders', 'José Núñez de la Cruz', 'initech'];
+  const list = { id: 'kw', name: 'Client', hash, hashes: terms.map((t) => hash(E.keywordKey(t))), maxWords: 5 };
+  assert.ok(!JSON.stringify(list.hashes).includes('Northwind'));
+  const out = run('Mail NORTHWIND  traders and jose nunez de la cruz; Initech-hosted, not Initechs', { compiledWordlists: [list] });
+  assert.equal(out, 'Mail [CLIENT_1] and [CLIENT_2]; [CLIENT_3]-hosted, not Initechs');
+  assert.equal(run('no hashes here', { compiledWordlists: [{ ...list, hashes: [] }] }), 'no hashes here');
+});
+
 test('stored rules are upgraded: new defaults added unless deleted, validators added, outdated patterns replaced', () => {
   const D = globalThis.TRELLIS_DEFAULTS.rules;
   const stored = [
