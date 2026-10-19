@@ -265,6 +265,27 @@ globalThis.TRELLIS_DEFAULTS = {
       enabled: true
     },
     {
+      // Cookie values in HTTP headers (Cookie: and Set-Cookie:), not the attributes (Path, Expires...)
+      id: 'cookie-header',
+      name: 'Cookie',
+      type: 'regex',
+      pattern: '(?<=^[ \\t]*(?:Set-)?Cookie:[^\\r\\n]*?\\b(?!(?:Path|Domain|Expires|Max-Age|SameSite|Priority|Partitioned)=)[\\w.!#$%&\'*+^`|~-]+=)[^;\\r\\n]+',
+      flags: 'gim',
+      replacement: '',
+      enabled: true
+    },
+    {
+      // User names in assignments (user=, username: , login=). Off by default: in code it also catches things like
+      // `user = User()`; turn it on for logs, configs and HTTP traffic.
+      id: 'user-assign',
+      name: 'User',
+      type: 'regex',
+      pattern: '(?<=\\b(?:user(?:name)?|login|uid|usuario)\\s*[:=]\\s*["\']?)[^\\s"\',;&()<>]{2,64}',
+      flags: 'gi',
+      replacement: '',
+      enabled: false
+    },
+    {
       // Incoming webhook URLs: whoever has one can post as you
       id: 'webhook',
       name: 'Webhook',

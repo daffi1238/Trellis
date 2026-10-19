@@ -49,7 +49,8 @@ You see:       …the LLM's answer; hover a placeholder to see the original, or 
   site → right-click → *Add to Trellis memory*.
 - **Rules**: built-in regexes for emails, phone numbers (Spanish and international), IBANs, cards, Spanish IDs,
   IPs, JWTs, private keys, `password=`-style secrets, passwords in URLs (`postgres://user:password@host`),
-  `Authorization` headers, webhook URLs (Slack, Discord, Teams) and API keys of about 50 providers (Anthropic, OpenAI,
+  `Authorization` headers, `Cookie`/`Set-Cookie` values, user names in assignments (`user=`, `login:`; off by
+  default), webhook URLs (Slack, Discord, Teams) and API keys of about 50 providers (Anthropic, OpenAI,
   AWS, Google, GitHub, GitLab, Slack, Stripe, Twilio, SendGrid, npm, PyPI, Hugging Face, DigitalOcean, Vault…), plus
   your own regexes and keyword rules. Cards, IBANs, Spanish IDs and JWTs are checked with their checksum or structure
   (Luhn, ISO 13616 mod-97, DNI/NIE letter, JWT header), so an order number is not taken for a card. The API key
