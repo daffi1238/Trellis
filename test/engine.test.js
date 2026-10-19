@@ -303,6 +303,13 @@ test('hashed word lists: terms are matched by fingerprint, never stored', () => 
   assert.equal(run('no hashes here', { compiledWordlists: [{ ...list, hashes: [] }] }), 'no hashes here');
 });
 
+test('large texts: every match is obfuscated, well past 10,000 per rule', () => {
+  const text = Array.from({ length: 15000 }, (_, i) => `10.0.${i >> 8 & 255}.${i & 255}`).join('\n');
+  const out = E.obfuscate(text, base(), E.createSession());
+  assert.equal(out.count, 15000);
+  assert.doesNotMatch(out.text, /\d+\.\d+\.\d+\.\d+/);
+});
+
 test('stored rules are upgraded: new defaults added unless deleted, validators added, outdated patterns replaced', () => {
   const D = globalThis.TRELLIS_DEFAULTS.rules;
   const stored = [
