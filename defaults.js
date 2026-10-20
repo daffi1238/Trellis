@@ -265,11 +265,12 @@ globalThis.TRELLIS_DEFAULTS = {
       enabled: true
     },
     {
-      // Cookie values in HTTP headers (Cookie: and Set-Cookie:), not the attributes (Path, Expires...)
+      // Cookie values in HTTP headers (Cookie: and Set-Cookie:), also inside log lines, not the attributes (Path,
+      // Expires...)
       id: 'cookie-header',
       name: 'Cookie',
       type: 'regex',
-      pattern: '(?<=^[ \\t]*(?:Set-)?Cookie:[^\\r\\n]*?\\b(?!(?:Path|Domain|Expires|Max-Age|SameSite|Priority|Partitioned)=)[\\w.!#$%&\'*+^`|~-]+=)[^;\\r\\n]+',
+      pattern: '(?<=(?:^|[^\\w-])(?:Set-)?Cookie:[^\\r\\n]*?\\b(?!(?:Path|Domain|Expires|Max-Age|SameSite|Priority|Partitioned)=)[\\w.!#$%&\'*+^`|~-]+=)[^;\\r\\n]+',
       flags: 'gim',
       replacement: '',
       enabled: true
@@ -308,7 +309,8 @@ globalThis.TRELLIS_OUTDATED_PATTERNS = {
     '(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]{1,64}@(?:[A-Za-z0-9-]{1,63}\\.){1,8}[A-Za-z]{2,24}(?![A-Za-z0-9-])' // matched the password@host of URLs
   ],
   'api-key': ['\\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35})'],
-  card: ['\\b(?:\\d{4}[ -]?){3}\\d{4}\\b']
+  card: ['\\b(?:\\d{4}[ -]?){3}\\d{4}\\b'],
+  'cookie-header': ['(?<=^[ \\t]*(?:Set-)?Cookie:[^\\r\\n]*?\\b(?!(?:Path|Domain|Expires|Max-Age|SameSite|Priority|Partitioned)=)[\\w.!#$%&\'*+^`|~-]+=)[^;\\r\\n]+'] // header lines only: missed Cookie: inside log lines
 };
 
 globalThis.trellisMergeSettings = function (stored) {

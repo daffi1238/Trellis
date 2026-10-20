@@ -285,7 +285,10 @@ test('URL passwords, Authorization headers, webhooks and international phones', 
 test('HTTP traffic: Cookie and Set-Cookie values, and user names when that rule is on', () => {
   const http = 'Cookie: sessionid=' + 'abc123XYZ; theme=dark\nSet-Cookie: sid=' + 's%3AxYz987; Path=/; HttpOnly; SameSite=Lax';
   assert.equal(run(http), 'Cookie: sessionid=[COOKIE_1]; theme=[COOKIE_2]\nSet-Cookie: sid=[COOKIE_3]; Path=/; HttpOnly; SameSite=Lax');
-  assert.equal(run('the cookie jar: theme=dark'), 'the cookie jar: theme=dark', 'only in header lines');
+  assert.equal(run('the cookie jar: theme=dark'), 'the cookie jar: theme=dark', 'only after Cookie:');
+  const log = '08:05:03Z web POST /login 401 Cookie: session=' + '4f9a1c2e7b8d; theme=dark ua=x';
+  assert.equal(run(log), '08:05:03Z web POST /login 401 Cookie: session=[COOKIE_1]; theme=[COOKIE_2]', 'inside a log line');
+  assert.equal(run('X-NotCookie: a=b'), 'X-NotCookie: a=b');
   assert.equal(run('login=jdoe'), 'login=jdoe', 'user names are off by default');
   const rules = base().rules.map((r) => (r.id === 'user-assign' ? { ...r, enabled: true } : r));
   assert.equal(run('username=jdoe&next=1\nuser: admin\nn = user_count(3)', { rules }), 'username=[USER_1]&next=1\nuser: [USER_2]\nn = user_count(3)');
