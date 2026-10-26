@@ -165,8 +165,9 @@ globalThis.TRELLIS_DEFAULTS = {
       id: 'secret-assign',
       name: 'Secret',
       type: 'regex',
-      // Only the value after "password=", "token: ", etc.
-      pattern: '(?<=\\b(?:password|passwd|pwd|passwort|contraseña|mot de passe|secret|token|api[_-]?key)\\s*[:=]\\s*["\']?)[^\\s"\',;]+',
+      // Only the value after "password=", "token: ", "access_token":" etc. An optional quote before the separator
+      // covers JSON keys ("access_token":"...").
+      pattern: '(?<=\\b(?:password|passwd|pwd|passwort|contraseña|mot de passe|client[_-]?secret|secret|(?:access|refresh|id)[_-]?token|token|api[_-]?key)["\']?\\s*[:=]\\s*["\']?)[^\\s"\',;]+',
       flags: 'gi',
       replacement: '',
       enabled: true
@@ -295,6 +296,29 @@ globalThis.TRELLIS_DEFAULTS = {
       flags: 'g',
       replacement: '',
       enabled: true
+    },
+    {
+      // Opaque secrets in token-cache blobs (roadtx / MSAL): the "data" and "nonce" values in
+      // {"id":...,"nonce":...,"data":...}. The id (a GUID) is left alone; a JWT-shaped token is caught by the JWT rule.
+      id: 'token-cache',
+      name: 'Token',
+      type: 'regex',
+      pattern: '(?<="(?:data|nonce)"\\s*:\\s*")[A-Za-z0-9+/_=-]{16,}(?=")',
+      flags: 'g',
+      replacement: '',
+      enabled: true
+    },
+    {
+      // Secrets passed as a command-line flag value: --access-token X, --refresh-token=X, --token, --client-secret,
+      // --password, --api-key. The flag name is the signal; a JWT or token-cache argument is caught by its own rule,
+      // so a value that starts with { or [ (a JSON blob) is skipped here.
+      id: 'cli-secret-flag',
+      name: 'Token',
+      type: 'regex',
+      pattern: '(?<=(?:^|\\s)--(?:(?:access|refresh|id)[_-]?token|client[_-]?secret|api[_-]?key|password|secret|token)[= ]["\']?)(?![{\\[])[^\\s"\']+',
+      flags: 'gi',
+      replacement: '',
+      enabled: true
     }
   ]
 };
@@ -310,7 +334,8 @@ globalThis.TRELLIS_OUTDATED_PATTERNS = {
   ],
   'api-key': ['\\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35})'],
   card: ['\\b(?:\\d{4}[ -]?){3}\\d{4}\\b'],
-  'cookie-header': ['(?<=^[ \\t]*(?:Set-)?Cookie:[^\\r\\n]*?\\b(?!(?:Path|Domain|Expires|Max-Age|SameSite|Priority|Partitioned)=)[\\w.!#$%&\'*+^`|~-]+=)[^;\\r\\n]+'] // header lines only: missed Cookie: inside log lines
+  'cookie-header': ['(?<=^[ \\t]*(?:Set-)?Cookie:[^\\r\\n]*?\\b(?!(?:Path|Domain|Expires|Max-Age|SameSite|Priority|Partitioned)=)[\\w.!#$%&\'*+^`|~-]+=)[^;\\r\\n]+'], // header lines only: missed Cookie: inside log lines
+  'secret-assign': ['(?<=\\b(?:password|passwd|pwd|passwort|contraseña|mot de passe|secret|token|api[_-]?key)\\s*[:=]\\s*["\']?)[^\\s"\',;]+'] // did not catch JSON keys ("access_token":"...") or OAuth token names
 };
 
 globalThis.trellisMergeSettings = function (stored) {

@@ -294,6 +294,37 @@ test('HTTP traffic: Cookie and Set-Cookie values, and user names when that rule 
   assert.equal(run('username=jdoe&next=1\nuser: admin\nn = user_count(3)', { rules }), 'username=[USER_1]&next=1\nuser: [USER_2]\nn = user_count(3)');
 });
 
+test('token-cache blobs, OAuth token keys and secrets passed as CLI flags', () => {
+  const details = (t) => E.obfuscate(t, base(), E.createSession()).matches;
+  const T = '[' + 'TOKEN'; // built by hand: a literal bracketed placeholder would be rewritten in this session
+  const S = '[' + 'SECRET';
+
+  // roadtx / MSAL token-cache: the opaque data and nonce are hidden, the GUID id is left alone.
+  const guid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+  const nonce = 'Zm9vYmFyZXhhbXBsZU5vbmNl';
+  const data = 'vcfake' + 'A1b2C3d4E5f6G7h8'.repeat(20);
+  const blob = 'roadtx gettoken --access-token "{"id":"' + guid + '","nonce":"' + nonce + '","data":"' + data + '"}"';
+  const out = run(blob);
+  assert.ok(!out.includes(data) && !out.includes(nonce), 'data and nonce are hidden');
+  assert.ok(out.includes(guid), 'the GUID id is not sensitive and is kept');
+  assert.equal(details(blob).filter((m) => m.rule === 'Token').length, 2, 'data and nonce, nothing else');
+
+  // OAuth token names, as JSON keys or as assignments.
+  assert.ok(run('{"access_token":"' + 'AQABopaque0123456789' + '"}').includes(S), '"access_token":"..."');
+  assert.ok(run('refresh_token=' + '0.ARoAopaque-123').includes(S), 'refresh_token=...');
+
+  // Secrets passed as a command-line flag: the space-separated form has no = or :, so only the flag rule catches it.
+  assert.ok(run('az login --password ' + 'P@ssw0rd-fake').includes(T), '--password <value> → Token');
+  const at = '0.AQABopaqueToken-123';
+  assert.ok(run('roadtx --access-token ' + at).includes(T) && !run('roadtx --access-token ' + at).includes(at), '--access-token <opaque> → Token');
+  const cs = 'Cs3cret~fake_value'; // the = form is caught by secret-assign instead; still hidden
+  assert.ok(!run('tool --client-secret=' + cs).includes(cs), '--client-secret=<value> is hidden');
+
+  // Negatives: a short/plain data field, and unrelated flags.
+  assert.equal(details('{"data":"ok","id":"42"}').length, 0, 'a short data value is not a token');
+  assert.equal(details('run --verbose --output out.txt').length, 0, 'unrelated flags');
+});
+
 test('hashed word lists: terms are matched by fingerprint, never stored', () => {
   const crypto = require('node:crypto');
   const key = crypto.randomBytes(32);
