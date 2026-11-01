@@ -303,7 +303,7 @@ globalThis.TRELLIS_DEFAULTS = {
       id: 'token-cache',
       name: 'Token',
       type: 'regex',
-      pattern: '(?<="(?:data|nonce)"\\s*:\\s*")[A-Za-z0-9+/_=-]{16,}(?=")',
+      pattern: '(?<="(?:data|nonce|prt)"\\s*:\\s*")[A-Za-z0-9+/_=-]{16,}(?=")',
       flags: 'g',
       replacement: '',
       enabled: true
@@ -319,6 +319,19 @@ globalThis.TRELLIS_DEFAULTS = {
       flags: 'gi',
       replacement: '',
       enabled: true
+    },
+    {
+      // A long opaque token (40+ base64url chars): PRT "data" blobs, session tokens, API keys with no known prefix.
+      // Off by default: too broad for code and prose. Turn it on for auth dumps and HTTP traces. The lookahead needs
+      // an upper-case letter, _ or - in the run, so lower-case hex (git SHAs, sha256...) and plain digits are left
+      // alone; a JWT is matched whole by the jwt rule (longest match wins), so it is never chopped at its dots.
+      id: 'opaque-token',
+      name: 'Token',
+      type: 'regex',
+      pattern: '(?<![A-Za-z0-9_-])(?=[A-Za-z0-9_-]*[A-Z_-])[A-Za-z0-9_-]{40,}(?![A-Za-z0-9_-])',
+      flags: 'g',
+      replacement: '',
+      enabled: false
     }
   ]
 };
@@ -335,7 +348,8 @@ globalThis.TRELLIS_OUTDATED_PATTERNS = {
   'api-key': ['\\b(?:sk-(?:ant-|proj-)?[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}|xox[abprs]-[A-Za-z0-9-]{10,}|AIza[0-9A-Za-z_-]{35})'],
   card: ['\\b(?:\\d{4}[ -]?){3}\\d{4}\\b'],
   'cookie-header': ['(?<=^[ \\t]*(?:Set-)?Cookie:[^\\r\\n]*?\\b(?!(?:Path|Domain|Expires|Max-Age|SameSite|Priority|Partitioned)=)[\\w.!#$%&\'*+^`|~-]+=)[^;\\r\\n]+'], // header lines only: missed Cookie: inside log lines
-  'secret-assign': ['(?<=\\b(?:password|passwd|pwd|passwort|contraseña|mot de passe|secret|token|api[_-]?key)\\s*[:=]\\s*["\']?)[^\\s"\',;]+'] // did not catch JSON keys ("access_token":"...") or OAuth token names
+  'secret-assign': ['(?<=\\b(?:password|passwd|pwd|passwort|contraseña|mot de passe|secret|token|api[_-]?key)\\s*[:=]\\s*["\']?)[^\\s"\',;]+'], // did not catch JSON keys ("access_token":"...") or OAuth token names
+  'token-cache': ['(?<="(?:data|nonce)"\\s*:\\s*")[A-Za-z0-9+/_=-]{16,}(?=")'] // added the PRT "prt" key
 };
 
 globalThis.trellisMergeSettings = function (stored) {

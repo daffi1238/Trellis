@@ -320,9 +320,26 @@ test('token-cache blobs, OAuth token keys and secrets passed as CLI flags', () =
   const cs = 'Cs3cret~fake_value'; // the = form is caught by secret-assign instead; still hidden
   assert.ok(!run('tool --client-secret=' + cs).includes(cs), '--client-secret=<value> is hidden');
 
+  // PRT cookie blobs carry the token in a "prt" key.
+  const prt = 'A1b2C3d4E5f6G7h8'.repeat(6);
+  assert.ok(!run('{"prt":"' + prt + '"}').includes(prt), '"prt":"..." is hidden');
+
   // Negatives: a short/plain data field, and unrelated flags.
   assert.equal(details('{"data":"ok","id":"42"}').length, 0, 'a short data value is not a token');
   assert.equal(details('run --verbose --output out.txt').length, 0, 'unrelated flags');
+
+  // opaque-token: a long base64url token with no known key or prefix. Off by default, enabled for auth dumps.
+  const on = base().rules.map((r) => (r.id === 'opaque-token' ? { ...r, enabled: true } : r));
+  const run2 = (t) => E.obfuscate(t, { ...base(), rules: on }, E.createSession());
+  const opaque = 'AQABopaque' + 'Xy7-z9_Q'.repeat(5);
+  assert.equal(details('session ' + opaque).length, 0, 'off by default');
+  assert.ok(!run2('session ' + opaque).text.includes(opaque), 'enabled: a long opaque token is hidden');
+  // Lower-case hex (git SHAs, sha256) and plain digits are left alone even when enabled.
+  assert.equal(run2('commit 3f2a1b9c4d5e6f708192a3b4c5d6e7f8091a2b3c sha ' + 'a'.repeat(64)).matches.length, 0, 'hex hashes are not tokens');
+  // A JWT is matched whole by the jwt rule, never chopped at its dots.
+  const jwt = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiJmaWN0aW9uYWxhdWRpZW5jZXZhbHVlMTIzNDU2Nzg5MCJ9.AAAAbbbbCCCCddddEEEEffff';
+  const jm = run2('token ' + jwt).matches;
+  assert.ok(jm.length === 1 && jm[0].rule === 'JWT', 'JWT stays whole with opaque-token on');
 });
 
 test('hashed word lists: terms are matched by fingerprint, never stored', () => {
